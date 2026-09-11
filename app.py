@@ -80,20 +80,16 @@ with st.form("form_encerramento"):
         iptu_pago = st.number_input("IPTU Já Pago Locatário (R$)", value=0.0, min_value=0.0)
 
     st.markdown("---")
+    st.write("**Seguro Incêndio**")
     cal_seguro = st.checkbox("Calcular Reembolso / Cobrança de Seguro Incêndio?", value=False)
     
-    dt_seguro_inicio = None
-    vlr_seguro_anual = 0.0
-    vlr_seguro_pago = 0.0
-    
-    if cal_seguro:
-        c13, c14, c15 = st.columns(3)
-        with c13:
-            dt_seguro_inicio = st.date_input("Início do Ciclo do Seguro", value=None, format="DD/MM/YYYY")
-        with c14:
-            vlr_seguro_anual = st.number_input("Valor Seguro Anual (R$)", value=0.0, min_value=0.0)
-        with c15:
-            vlr_seguro_pago = st.number_input("Valor Seguro Pago pelo Locatário (R$)", value=0.0, min_value=0.0)
+    c13, c14, c15 = st.columns(3)
+    with c13:
+        dt_seguro_inicio = st.date_input("Início do Ciclo do Seguro", value=None, format="DD/MM/YYYY")
+    with c14:
+        vlr_seguro_anual = st.number_input("Valor Seguro Anual (R$)", value=0.0, min_value=0.0)
+    with c15:
+        vlr_seguro_pago = st.number_input("Valor Seguro Pago pelo Locatário (R$)", value=0.0, min_value=0.0)
 
     st.subheader("5. Reparos, Outros Lançamentos e Caução")
     c16, c17 = st.columns(2)
@@ -110,7 +106,7 @@ with st.form("form_encerramento"):
 
     btn_calcular = st.form_submit_button("🚀 Calcular e Visualizar Acerto", type="primary")
 
-# Processamento do Cálculo e Exibição na Tela
+# Processamento do Cálculo
 if btn_calcular:
     if not dt_rescisao:
         st.warning("⚠️ Por favor, selecione a Data de Rescisão / Chaves para realizar os cálculos.")
