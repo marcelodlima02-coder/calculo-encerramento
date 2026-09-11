@@ -53,11 +53,11 @@ with st.form("form_encerramento"):
     st.subheader("2. Prazos e Aluguel Base")
     c3, c4, c5, c6 = st.columns(4)
     with c3:
-        dt_inicio = st.date_input("Data Início Contrato", value=None, format="DD/MM/YYYY")
+        dt_inicio = st.date_input("Data Início Contrato", value=None, format="DD/MM/YYYY", key="dt_inicio")
     with c4:
-        dt_fim = st.date_input("Data Fim Contrato", value=None, format="DD/MM/YYYY")
+        dt_fim = st.date_input("Data Fim Contrato", value=None, format="DD/MM/YYYY", key="dt_fim")
     with c5:
-        dt_rescisao = st.date_input("Data Rescisão / Chaves", value=None, format="DD/MM/YYYY")
+        dt_rescisao = st.date_input("Data Rescisão / Chaves", value=None, format="DD/MM/YYYY", key="dt_rescisao")
     with c6:
         aluguel = st.number_input("Valor do Último Aluguel (R$)", value=0.0, min_value=0.0, step=100.0)
 
@@ -96,7 +96,7 @@ with st.form("form_encerramento"):
     
     c17, c18, c19 = st.columns(3)
     with c17:
-        dt_seguro_inicio = st.date_input("Início do Ciclo do Seguro", value=None, format="DD/MM/YYYY")
+        dt_seguro_inicio = st.date_input("Início do Ciclo do Seguro", value=None, format="DD/MM/YYYY", key="dt_seg_inicio")
     with c18:
         vlr_seguro_anual = st.number_input("Valor Seguro Anual (R$)", value=0.0, min_value=0.0)
     with c19:
@@ -209,13 +209,18 @@ if btn_calcular:
         if iptu_prop != 0:
             itens_financeiros.append({"nome": "IPTU/TLP Proporcional", "valor": iptu_prop})
 
-        # 4. Multa Rescisória
+        # 4. Multa Rescisória (Tratamento seguro e robusto para datas)
         multa_calc = 0.0
         if aplicar_multa:
-            if dt_inicio and dt_fim:
-                prazo_total = (dt_fim - dt_inicio).days
-                tempo_decorrido = (dt_rescisao - dt_inicio).days
+            if isinstance(dt_inicio, (date, datetime)) and isinstance(dt_fim, (date, datetime)):
+                d_in = dt_inicio.date() if isinstance(dt_inicio, datetime) else dt_inicio
+                d_fi = dt_fim.date() if isinstance(dt_fim, datetime) else dt_fim
+                d_re = dt_rescisao.date() if isinstance(dt_rescisao, datetime) else dt_rescisao
+                
+                prazo_total = (d_fi - d_in).days
+                tempo_decorrido = (d_re - d_in).days
                 dias_restantes = prazo_total - tempo_decorrido
+                
                 if prazo_total > 0 and dias_restantes > 0:
                     multa_calc = round(((aluguel * 3.0) / prazo_total) * dias_restantes, 2)
                     if multa_calc > 0:
@@ -225,7 +230,9 @@ if btn_calcular:
 
         # 5. Seguro Incêndio
         if cal_seguro and dt_seguro_inicio and vlr_seguro_anual > 0:
-            dias_seguro = (dt_rescisao - dt_seguro_inicio).days
+            d_seg_in = dt_seguro_inicio.date() if isinstance(dt_seguro_inicio, datetime) else dt_seguro_inicio
+            d_re = dt_rescisao.date() if isinstance(dt_rescisao, datetime) else dt_rescisao
+            dias_seguro = (d_re - d_seg_in).days
             if dias_seguro >= 0:
                 vlr_devido_bruto = (vlr_seguro_anual / 365.0) * dias_seguro
                 diferenca_seguro = vlr_devido_bruto - vlr_seguro_pago
