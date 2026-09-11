@@ -61,45 +61,56 @@ with st.form("form_encerramento"):
     with c6:
         aluguel = st.number_input("Valor do Último Aluguel (R$)", value=0.0, min_value=0.0, step=100.0)
 
-    st.subheader("3. Regras de Condomínio e Multa")
+    st.subheader("3. Regras de Aluguel Proporcional, Condomínio e Multa")
     c7, c8, c9, c10 = st.columns(4)
     with c7:
-        vlr_condominio = st.number_input("Valor Mensal Condomínio (R$)", value=0.0, min_value=0.0)
+        tipo_aluguel = st.selectbox("Tipo do Aluguel", ["Vencido", "Vincendo"])
     with c8:
-        tipo_condominio = st.selectbox("Tipo de Condomínio", ["Vincendo", "Vencido"])
+        status_aluguel = st.selectbox("Status Aluguel Mês Rescisão", ["Pago", "Não Pago"])
     with c9:
-        status_condominio = st.selectbox("Status Mês Rescisão", ["Pago", "Não Pago"])
+        modelo_ciclo_aluguel = st.selectbox("Modelo do Ciclo do Aluguel", ["Mês Fechado (01 a 30)", "Por Ciclo de Vencimento"])
     with c10:
+        dia_vencimento_aluguel = st.number_input("Dia de Vencimento do Aluguel", value=5, min_value=1, max_value=31, step=1, help="Utilizado quando o ciclo não for Mês Fechado")
+
+    st.markdown("---")
+    c11, c12, c13, c14 = st.columns(4)
+    with c11:
+        vlr_condominio = st.number_input("Valor Mensal Condomínio (R$)", value=0.0, min_value=0.0)
+    with c12:
+        tipo_condominio = st.selectbox("Tipo de Condomínio", ["Vincendo", "Vencido"])
+    with c13:
+        status_condominio = st.selectbox("Status Condomínio Mês Rescisão", ["Pago", "Não Pago"])
+    with c14:
         aplicar_multa = st.checkbox("Aplicar Multa Rescisória?", value=False)
 
     st.subheader("4. IPTU/TLP e Seguro Incêndio")
-    c11, c12 = st.columns(2)
-    with c11:
+    c15, c16 = st.columns(2)
+    with c15:
         iptu_anual = st.number_input("Valor IPTU+TLP Anual (R$)", value=0.0, min_value=0.0)
-    with c12:
+    with c16:
         iptu_pago = st.number_input("IPTU Já Pago Locatário (R$)", value=0.0, min_value=0.0)
 
     st.markdown("---")
     st.write("**Seguro Incêndio**")
     cal_seguro = st.checkbox("Calcular Reembolso / Cobrança de Seguro Incêndio?", value=False)
     
-    c13, c14, c15 = st.columns(3)
-    with c13:
+    c17, c18, c19 = st.columns(3)
+    with c17:
         dt_seguro_inicio = st.date_input("Início do Ciclo do Seguro", value=None, format="DD/MM/YYYY")
-    with c14:
+    with c18:
         vlr_seguro_anual = st.number_input("Valor Seguro Anual (R$)", value=0.0, min_value=0.0)
-    with c15:
+    with c19:
         vlr_seguro_pago = st.number_input("Valor Seguro Pago pelo Locatário (R$)", value=0.0, min_value=0.0)
 
     st.subheader("5. Reparos, Outros Lançamentos e Caução")
-    c16, c17 = st.columns(2)
-    with c16:
+    c20, c21 = st.columns(2)
+    with c20:
         vlr_reparos = st.number_input("Reparos / Danos Imóvel (R$)", value=0.0, min_value=0.0)
         desc_extra1 = st.text_input("Outros 1 - Descrição", value="", placeholder="Ex: Pintura")
         vlr_extra1 = st.number_input("Outros 1 - Valor (R$)", value=0.0, min_value=0.0)
         desc_extra2 = st.text_input("Outros 2 - Descrição", value="", placeholder="Ex: Troca de Fechadura")
         vlr_extra2 = st.number_input("Outros 2 - Valor (R$)", value=0.0, min_value=0.0)
-    with c17:
+    with c21:
         desc_extra3 = st.text_input("Outros 3 - Descrição", value="", placeholder="Ex: Limpeza")
         vlr_extra3_val = st.number_input("Outros 3 - Valor (R$)", value=0.0, min_value=0.0)
         vlr_caucao = st.number_input("Valor Caução Depositada (R$)", value=0.0, min_value=0.0)
@@ -111,43 +122,73 @@ if btn_calcular:
     if not dt_rescisao:
         st.warning("⚠️ Por favor, selecione a Data de Rescisão / Chaves para realizar os cálculos.")
     else:
-        dias_mes_saida = dt_rescisao.day
-        
-        # 1. Aluguel Proporcional (Mês comercial de 30 dias)
-        aluguel_prop = round((aluguel / 30.0) * min(dias_mes_saida, 30), 2)
-        
-        # Lista de Itens Financeiros
+        dia_saida = dt_rescisao.day
         itens_financeiros = []
         
-        if aluguel_prop > 0:
-            itens_financeiros.append({"nome": "Aluguel proporcional mes corrente", "valor": aluguel_prop})
+        # 1. Aluguel Proporcional
+        eh_mes_fechado = (modelo_ciclo_aluguel == "Mês Fechado (01 a 30)")
+        
+        if eh_mes_fechado:
+            dias_ocupados_aluguel = min(dia_saida, 30)
+            dias_nao_usufruidos_aluguel = 30 - dias_ocupados_aluguel
+        else:
+            if dia_saida >= dia_vencimento_aluguel:
+                dias_ocupados_aluguel = dia_saida - dia_vencimento_aluguel
+            else:
+                dias_ocupados_aluguel = (30 - dia_vencimento_aluguel) + dia_saida
+            dias_nao_usufruidos_aluguel = 30 - dias_ocupados_aluguel
+
+        val_dia_aluguel = aluguel / 30.0
+        
+        if tipo_aluguel == "Vincendo":
+            if status_aluguel == "Pago":
+                val_aluguel_calc = -round(val_dia_aluguel * dias_nao_usufruidos_aluguel, 2)
+                if val_aluguel_calc < 0:
+                    itens_financeiros.append({"nome": "Reembolso Aluguel Proporcional (Vincendo)", "valor": val_aluguel_calc})
+            else:
+                val_aluguel_calc = round(val_dia_aluguel * dias_ocupados_aluguel, 2)
+                if val_aluguel_calc > 0:
+                    itens_financeiros.append({"nome": "Aluguel Proporcional Mes Encerramento", "valor": val_aluguel_calc})
+        else: # Vencido
+            if status_aluguel == "Pago":
+                val_aluguel_calc = round(val_dia_aluguel * dias_ocupados_aluguel, 2)
+                if val_aluguel_calc > 0:
+                    itens_financeiros.append({"nome": "Aluguel Proporcional Mes Encerramento", "valor": val_aluguel_calc})
+            else:
+                vlr_aluguel_mes_ant = round(aluguel, 2)
+                vlr_aluguel_prop = round(val_dia_aluguel * dias_ocupados_aluguel, 2)
+                if vlr_aluguel_mes_ant > 0:
+                    itens_financeiros.append({"nome": "Aluguel Mes Anterior (Vencido)", "valor": vlr_aluguel_mes_ant})
+                if vlr_aluguel_prop > 0:
+                    itens_financeiros.append({"nome": "Aluguel Proporcional Mes Encerramento", "valor": vlr_aluguel_prop})
 
         # 2. Condomínio Proporcional
         vlr_dia_cond = vlr_condominio / 30.0
-        dias_usufruidos = min(dias_mes_saida, 30)
-        dias_nao_usufruidos = 30 - dias_usufruidos
+        dias_usufruidos_cond = min(dia_saida, 30)
+        dias_nao_usufruidos_cond = 30 - dias_usufruidos_cond
         
         if tipo_condominio == "Vincendo":
             if status_condominio == "Pago":
-                vlr_cond_calc = -round(vlr_dia_cond * dias_nao_usufruidos, 2)
-                itens_financeiros.append({"nome": "Reembolso Condominio Proporcional (Vincendo)", "valor": vlr_cond_calc})
+                vlr_cond_calc = -round(vlr_dia_cond * dias_nao_usufruidos_cond, 2)
+                if vlr_cond_calc < 0:
+                    itens_financeiros.append({"nome": "Reembolso Condominio Proporcional (Vincendo)", "valor": vlr_cond_calc})
             else:
-                vlr_cond_calc = round(vlr_dia_cond * dias_usufruidos, 2)
+                vlr_cond_calc = round(vlr_dia_cond * dias_usufruidos_cond, 2)
                 if vlr_cond_calc > 0:
                     itens_financeiros.append({"nome": "Condominio Proporcional", "valor": vlr_cond_calc})
         else: # Vencido
             if status_condominio == "Pago":
-                vlr_cond_calc = round(vlr_dia_cond * dias_usufruidos, 2)
+                vlr_cond_calc = round(vlr_dia_cond * dias_usufruidos_cond, 2)
                 if vlr_cond_calc > 0:
                     itens_financeiros.append({"nome": "Condominio Proporcional", "valor": vlr_cond_calc})
             else:
-                vlr_mes_anterior = round(vlr_condominio, 2)
-                vlr_prop_atual = round(vlr_dia_cond * dias_usufruidos, 2)
+                vlr_mes_anterior_cond = round(vlr_condominio, 2)
+                vlr_prop_atual_cond = round(vlr_dia_cond * dias_usufruidos_cond, 2)
                 
-                if vlr_mes_anterior > 0:
-                    itens_financeiros.append({"nome": "Condominio Mes Anterior (Vencido)", "valor": vlr_mes_anterior})
-                if vlr_prop_atual > 0:
-                    itens_financeiros.append({"nome": "Condominio Proporcional Mes Encerramento", "valor": vlr_prop_atual})
+                if vlr_mes_anterior_cond > 0:
+                    itens_financeiros.append({"nome": "Condominio Mes Anterior (Vencido)", "valor": vlr_mes_anterior_cond})
+                if vlr_prop_atual_cond > 0:
+                    itens_financeiros.append({"nome": "Condominio Proporcional Mes Encerramento", "valor": vlr_prop_atual_cond})
 
         # 3. IPTU Proporcional
         dt_inicio_ano = date(dt_rescisao.year, 1, 1)
