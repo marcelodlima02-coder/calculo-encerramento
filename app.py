@@ -1,5 +1,10 @@
 import io
+import smtplib
 from datetime import datetime, date
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email import encoders
 import streamlit as st
 from fpdf import FPDF
 
@@ -228,20 +233,23 @@ if btn_calcular:
             else:
                 st.warning("⚠️ Para calcular a Multa Rescisória, informe também as Datas de Início e Fim do Contrato.")
 
-        # 5. Seguro Incêndio
-        if cal_seguro and dt_seguro_inicio and vlr_seguro_anual > 0:
-            d_seg_in = dt_seguro_inicio.date() if isinstance(dt_seguro_inicio, datetime) else dt_seguro_inicio
-            d_re = dt_rescisao.date() if isinstance(dt_rescisao, datetime) else dt_rescisao
-            dias_seguro = (d_re - d_seg_in).days
-            if dias_seguro >= 0:
-                vlr_devido_bruto = (vlr_seguro_anual / 365.0) * dias_seguro
-                diferenca_seguro = vlr_devido_bruto - vlr_seguro_pago
-                resultado_seguro = round(diferenca_seguro * 0.8025, 2)
-                
-                if resultado_seguro < 0:
-                    itens_financeiros.append({"nome": "Reembolso Seguro Incendio Proporcional", "valor": resultado_seguro})
-                elif resultado_seguro > 0:
-                    itens_financeiros.append({"nome": "Cobranca Seguro Incendio Proporcional", "valor": resultado_seguro})
+        # 5. Seguro Incêndio (Validação com alerta amigável)
+        if cal_seguro:
+            if dt_seguro_inicio and vlr_seguro_anual > 0:
+                d_seg_in = dt_seguro_inicio.date() if isinstance(dt_seguro_inicio, datetime) else dt_seguro_inicio
+                d_re = dt_rescisao.date() if isinstance(dt_rescisao, datetime) else dt_rescisao
+                dias_seguro = (d_re - d_seg_in).days
+                if dias_seguro >= 0:
+                    vlr_devido_bruto = (vlr_seguro_anual / 365.0) * dias_seguro
+                    diferenca_seguro = vlr_devido_bruto - vlr_seguro_pago
+                    resultado_seguro = round(diferenca_seguro * 0.8025, 2)
+                    
+                    if resultado_seguro < 0:
+                        itens_financeiros.append({"nome": "Reembolso Seguro Incendio Proporcional", "valor": resultado_seguro})
+                    elif resultado_seguro > 0:
+                        itens_financeiros.append({"nome": "Cobranca Seguro Incendio Proporcional", "valor": resultado_seguro})
+            else:
+                st.warning("⚠️ Para calcular o Seguro Incêndio, informe a Data de Início do Ciclo e o Valor Seguro Anual.")
 
         # Reparos e Outros Lançamentos Extras
         if vlr_reparos > 0:
@@ -325,9 +333,6 @@ if btn_calcular:
             else:
                 st.info("### ACERTO QUITADO\n## R$ 0,00")
 
-        st.markdown("---")
-        st.write("🔍 **Revise os valores acima.** Se estiver tudo correto, clique no botão abaixo para baixar o Termo oficial em PDF:")
-
         # PDF
         pdf = FPDF()
         pdf.add_page()
@@ -346,7 +351,6 @@ if btn_calcular:
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(6)
         
-        # Função auxiliar para tabela no PDF com redefinição explícita da cor do texto
         def add_pdf_row(label, val_str):
             pdf.set_font('Helvetica', 'B', 9)
             pdf.set_text_color(50, 50, 50)
@@ -379,7 +383,7 @@ if btn_calcular:
         add_pdf_row('Data Rescisao/Chaves:', dt_rescisao.strftime('%d/%m/%Y') if dt_rescisao else "Nao informado")
         pdf.ln(4)
 
-        # Seção 3 - AUDITORIA DE PARÂMETROS DIGITADOS
+        # Seção 3 - AUDITORIA DE PARÂMETROS
         pdf.set_fill_color(44, 62, 80)
         pdf.set_text_color(255, 255, 255)
         pdf.set_font('Helvetica', 'B', 10)
