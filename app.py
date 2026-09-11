@@ -37,7 +37,7 @@ def format_money(val):
 st.set_page_config(page_title="Encerramento de Contrato", page_icon="📄", layout="wide")
 
 st.title("📄 Painel de Encerramento de Contrato de Locação")
-st.write("Preencha os dados abaixo para calcular os valores e gerar o Termo de Encerramento em PDF.")
+st.write("Preencha os dados abaixo para calcular os valores, visualizar a prévia na tela e gerar o Termo em PDF.")
 
 # Form de Entrada de Dados com datas e campos vazios por padrão
 with st.form("form_encerramento"):
@@ -98,9 +98,9 @@ with st.form("form_encerramento"):
         vlr_extra3_val = st.number_input("Outros 3 - Valor (R$)", value=0.0, min_value=0.0)
         vlr_caucao = st.number_input("Valor Caução Depositada (R$)", value=0.0, min_value=0.0)
 
-    btn_calcular = st.form_submit_button("🚀 Calcular e Gerar Termo em PDF", type="primary")
+    btn_calcular = st.form_submit_button("🚀 Calcular e Visualizar Acerto", type="primary")
 
-# Processamento do Cálculo
+# Processamento do Cálculo e Exibição na Tela
 if btn_calcular:
     if not dt_rescisao:
         st.warning("⚠️ Por favor, selecione a Data de Rescisão / Chaves para realizar os cálculos.")
@@ -151,7 +151,7 @@ if btn_calcular:
             if dias_efetivos > 0:
                 seguro_reembolso_calc = round((vlr_seguro_anual / 365.0) * dias_efetivos * 0.8025, 2)
 
-        # Lista de Itens para o PDF
+        # Lista de Itens para a Tela e PDF
         itens_financeiros = []
         
         if aluguel_prop > 0:
@@ -177,22 +177,36 @@ if btn_calcular:
         total_debitos = sum(item["valor"] for item in itens_financeiros)
         saldo_final = total_debitos - vlr_caucao
 
-        # Resumo na Tela
+        # -------------------------------------------------------------
+        # PRÉVIA DOS CÁLCULOS NA TELA (ANTES DO DOWNLOAD)
+        # -------------------------------------------------------------
         st.markdown("---")
-        st.subheader("📊 Resumo do Acerto Calculado")
-        for item in itens_financeiros:
-            st.write(f"• **{item['nome']}**: {format_money(item['valor'])}")
-        if vlr_caucao > 0:
-            st.write(f"• **(-) Abatimento de Caução**: -{format_money(vlr_caucao)}")
+        st.subheader("📋 Prévia do Acerto Financeiro (Conferência na Tela)")
+        
+        col_esq, col_dir = st.columns([2, 1])
+        
+        with col_esq:
+            st.markdown("#### Detalhamento das Rubricas")
+            for item in itens_financeiros:
+                st.write(f"• **{item['nome']}**: `{format_money(item['valor'])}`")
+            if vlr_caucao > 0:
+                st.write(f"• **(-) Abatimento de Caução Depositada**: `-{format_money(vlr_caucao)}`")
 
-        if saldo_final > 0:
-            st.error(f"**VALOR A SER COBRADO DO LOCATÁRIO: {format_money(saldo_final)}**")
-        elif saldo_final < 0:
-            st.success(f"**VALOR A DEVOLVER AO LOCATÁRIO: {format_money(abs(saldo_final))}**")
-        else:
-            st.info("**ACERTO QUITADO: R$ 0,00**")
+        with col_dir:
+            st.markdown("#### Resultado Final")
+            if saldo_final > 0:
+                st.error(f"### VALOR A COBRAR\n## {format_money(saldo_final)}")
+            elif saldo_final < 0:
+                st.success(f"### VALOR A DEVOLVER\n## {format_money(abs(saldo_final))}")
+            else:
+                st.info("### ACERTO QUITADO\n## R$ 0,00")
 
-        # Geração do PDF
+        st.markdown("---")
+        st.write("🔍 **Revise os valores acima.** Se estiver tudo correto, clique no botão abaixo para baixar o Termo oficial em PDF:")
+
+        # -------------------------------------------------------------
+        # GERAÇÃO DO PDF
+        # -------------------------------------------------------------
         pdf = FPDF()
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
@@ -304,7 +318,12 @@ if btn_calcular:
         pdf.text(115, y_sig + 5, normalizar_texto(locador)[:30])
         pdf.text(125, y_sig + 9, 'Locador (ou Representante)')
         
-        pdf_bytes = pdf.output(dest='S').encode('latin-1')
+        # Tratamento seguro da saída em bytes
+        pdf_out = pdf.output()
+        if isinstance(pdf_out, (bytes, bytearray)):
+            pdf_bytes = bytes(pdf_out)
+        else:
+            pdf_bytes = pdf.output(dest='S').encode('latin-1')
 
         st.download_button(
             label="📥 Baixar Termo de Encerramento em PDF",
