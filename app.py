@@ -110,7 +110,13 @@ if btn_calcular:
         # 1. Aluguel Proporcional (Mês comercial de 30 dias)
         aluguel_prop = round((aluguel / 30.0) * min(dias_mes_saida, 30), 2)
         
-        # 2. Condomínio Proporcional
+        # Lista de Itens Financeiros
+        itens_financeiros = []
+        
+        if aluguel_prop > 0:
+            itens_financeiros.append({"nome": "Aluguel proporcional mes corrente", "valor": aluguel_prop})
+
+        # 2. Condomínio Proporcional (Tratamento com desmembramento para Vencido + Não Pago)
         vlr_dia_cond = vlr_condominio / 30.0
         dias_usufruidos = min(dias_mes_saida, 30)
         dias_nao_usufruidos = 30 - dias_usufruidos
@@ -118,19 +124,33 @@ if btn_calcular:
         if tipo_condominio == "Vincendo":
             if status_condominio == "Pago":
                 vlr_cond_calc = -round(vlr_dia_cond * dias_nao_usufruidos, 2)
+                itens_financeiros.append({"nome": "Reembolso Condominio Proporcional (Vincendo)", "valor": vlr_cond_calc})
             else:
                 vlr_cond_calc = round(vlr_dia_cond * dias_usufruidos, 2)
+                if vlr_cond_calc > 0:
+                    itens_financeiros.append({"nome": "Condominio Proporcional", "valor": vlr_cond_calc})
         else: # Vencido
             if status_condominio == "Pago":
                 vlr_cond_calc = round(vlr_dia_cond * dias_usufruidos, 2)
+                if vlr_cond_calc > 0:
+                    itens_financeiros.append({"nome": "Condominio Proporcional", "valor": vlr_cond_calc})
             else:
-                vlr_cond_calc = round(vlr_condominio + (vlr_dia_cond * dias_usufruidos), 2)
+                # SEPARAÇÃO EM DUAS RUBRICAS QUANDO VENCIDO E NÃO PAGO
+                vlr_mes_anterior = round(vlr_condominio, 2)
+                vlr_prop_atual = round(vlr_dia_cond * dias_usufruidos, 2)
+                
+                if vlr_mes_anterior > 0:
+                    itens_financeiros.append({"nome": "Condominio Mes Anterior (Vencido)", "valor": vlr_mes_anterior})
+                if vlr_prop_atual > 0:
+                    itens_financeiros.append({"nome": "Condominio Proporcional Mes Encerramento", "valor": vlr_prop_atual})
 
         # 3. IPTU Proporcional
         dt_inicio_ano = date(dt_rescisao.year, 1, 1)
         dias_iptu = (dt_rescisao - dt_inicio_ano).days + 1
         iptu_devido_ano = (iptu_anual / 365.0) * dias_iptu
         iptu_prop = round(iptu_devido_ano - iptu_pago, 2)
+        if iptu_prop != 0:
+            itens_financeiros.append({"nome": "IPTU/TLP Proporcional", "valor": iptu_prop})
 
         # 4. Multa Rescisória
         multa_calc = 0.0
@@ -141,6 +161,8 @@ if btn_calcular:
                 dias_restantes = prazo_total - tempo_decorrido
                 if prazo_total > 0 and dias_restantes > 0:
                     multa_calc = round(((aluguel * 3.0) / prazo_total) * dias_restantes, 2)
+                    if multa_calc > 0:
+                        itens_financeiros.append({"nome": "Multa Rescisoria Contratual", "valor": multa_calc})
             else:
                 st.warning("⚠️ Para calcular a Multa Rescisória, informe também as Datas de Início e Fim do Contrato.")
 
@@ -150,21 +172,10 @@ if btn_calcular:
             dias_efetivos = (dt_rescisao - dt_seguro_inicio).days + 1
             if dias_efetivos > 0:
                 seguro_reembolso_calc = round((vlr_seguro_anual / 365.0) * dias_efetivos * 0.8025, 2)
+                if seguro_reembolso_calc > 0:
+                    itens_financeiros.append({"nome": "Reembolso Seguro Incendio Proporcional", "valor": -seguro_reembolso_calc})
 
-        # Lista de Itens para a Tela e PDF
-        itens_financeiros = []
-        
-        if aluguel_prop > 0:
-            itens_financeiros.append({"nome": "Aluguel proporcional mes corrente", "valor": aluguel_prop})
-        if vlr_cond_calc != 0:
-            nome_cond = "Reembolso Condominio Proporcional (Vincendo)" if vlr_cond_calc < 0 else "Condominio Proporcional"
-            itens_financeiros.append({"nome": nome_cond, "valor": vlr_cond_calc})
-        if iptu_prop != 0:
-            itens_financeiros.append({"nome": "IPTU/TLP Proporcional", "valor": iptu_prop})
-        if multa_calc > 0:
-            itens_financeiros.append({"nome": "Multa Rescisoria Contratual", "valor": multa_calc})
-        if seguro_reembolso_calc > 0:
-            itens_financeiros.append({"nome": "Reembolso Seguro Incendio Proporcional", "valor": -seguro_reembolso_calc})
+        # Reparos e Outros Lançamentos Extras
         if vlr_reparos > 0:
             itens_financeiros.append({"nome": "Reparos / Danos no Imovel", "valor": vlr_reparos})
         if vlr_extra1 > 0:
@@ -224,7 +235,7 @@ if btn_calcular:
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(6)
         
-        # Seção 1
+        # Seção 1: Dados do Contrato
         pdf.set_fill_color(44, 62, 80)
         pdf.set_text_color(255, 255, 255)
         pdf.set_font('Helvetica', 'B', 10)
@@ -244,7 +255,7 @@ if btn_calcular:
         add_row('Inscricao IPTU/TLP:', normalizar_texto(iptu_num))
         pdf.ln(4)
         
-        # Seção 2
+        # Seção 2: Prazos e Datas
         pdf.set_fill_color(44, 62, 80)
         pdf.set_text_color(255, 255, 255)
         pdf.set_font('Helvetica', 'B', 10)
@@ -256,7 +267,7 @@ if btn_calcular:
         add_row('Data Rescisao/Chaves:', dt_rescisao.strftime('%d/%m/%Y') if dt_rescisao else "Nao informado")
         pdf.ln(4)
         
-        # Seção 3
+        # Seção 3: Apuração Financeira
         pdf.set_fill_color(44, 62, 80)
         pdf.set_text_color(255, 255, 255)
         pdf.set_font('Helvetica', 'B', 10)
@@ -278,7 +289,7 @@ if btn_calcular:
             
         pdf.ln(4)
         
-        # Box Total
+        # Box Total Final
         if saldo_final > 0:
             label_tot = "VALOR A SER COBRADO DO LOCATARIO: "
             val_tot_str = format_money(saldo_final)
