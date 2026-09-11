@@ -209,7 +209,7 @@ if btn_calcular:
         if iptu_prop != 0:
             itens_financeiros.append({"nome": "IPTU/TLP Proporcional", "valor": iptu_prop})
 
-        # 4. Multa Rescisória (Tratamento seguro e robusto para datas)
+        # 4. Multa Rescisória
         multa_calc = 0.0
         if aplicar_multa:
             if isinstance(dt_inicio, (date, datetime)) and isinstance(dt_fim, (date, datetime)):
@@ -256,9 +256,56 @@ if btn_calcular:
         total_debitos = sum(item["valor"] for item in itens_financeiros)
         saldo_final = total_debitos - vlr_caucao
 
-        # Prévia na Tela
+        # Prévia na Tela com Parâmetros de Auditagem
         st.markdown("---")
-        st.subheader("📋 Prévia do Acerto Financeiro (Conferência na Tela)")
+        st.subheader("📋 Relatório de Conferência e Auditoria de Dados")
+        
+        with st.expander("📌 Ver Todos os Dados e Parâmetros Digitados pelo Funcionário", expanded=True):
+            st.markdown("##### 1. Dados do Contrato e Prazos")
+            col_a1, col_a2, col_a3 = st.columns(3)
+            with col_a1:
+                st.write(f"• **Locador:** {locador or 'Não informado'}")
+                st.write(f"• **Locatário:** {locatario or 'Não informado'}")
+                st.write(f"• **Imóvel:** {imovel or 'Não informado'}")
+                st.write(f"• **Inscrição IPTU:** {iptu_num or 'Não informado'}")
+            with col_a2:
+                st.write(f"• **Início Contrato:** {dt_inicio.strftime('%d/%m/%Y') if dt_inicio else 'Não informado'}")
+                st.write(f"• **Fim Contrato:** {dt_fim.strftime('%d/%m/%Y') if dt_fim else 'Não informado'}")
+                st.write(f"• **Data Rescisão:** {dt_rescisao.strftime('%d/%m/%Y') if dt_rescisao else 'Não informado'}")
+            with col_a3:
+                st.write(f"• **Aluguel Base:** {format_money(aluguel)}")
+                st.write(f"• **Tipo / Status Aluguel:** {tipo_aluguel} | {status_aluguel}")
+                st.write(f"• **Ciclo Aluguel:** {modelo_ciclo_aluguel} (Venc. Dia {dia_vencimento_aluguel})")
+
+            st.markdown("##### 2. Condomínio, IPTU e Seguro Incêndio")
+            col_b1, col_b2, col_b3 = st.columns(3)
+            with col_b1:
+                st.write(f"• **Condomínio Mensal:** {format_money(vlr_condominio)}")
+                st.write(f"• **Tipo / Status Condomínio:** {tipo_condominio} | {status_condominio}")
+                st.write(f"• **Multa Rescisória Aplicada:** {'Sim' if aplicar_multa else 'Não'}")
+            with col_b2:
+                st.write(f"• **IPTU Anual:** {format_money(iptu_anual)}")
+                st.write(f"• **IPTU Já Pago pelo Locatário:** {format_money(iptu_pago)}")
+            with col_b3:
+                if cal_seguro:
+                    st.write(f"• **Seguro Incêndio (Ciclo Início):** {dt_seguro_inicio.strftime('%d/%m/%Y') if dt_seguro_inicio else 'Não informado'}")
+                    st.write(f"• **Seguro Anual:** {format_money(vlr_seguro_anual)}")
+                    st.write(f"• **Seguro Pago pelo Locatário:** {format_money(vlr_seguro_pago)}")
+                else:
+                    st.write("• **Seguro Incêndio:** Não calculado")
+
+            st.markdown("##### 3. Outros Lançamentos e Caução")
+            col_c1, col_c2 = st.columns(2)
+            with col_c1:
+                st.write(f"• **Reparos / Danos:** {format_money(vlr_reparos)}")
+                if vlr_extra1 > 0: st.write(f"• **{desc_extra1 or 'Outros 1'}:** {format_money(vlr_extra1)}")
+                if vlr_extra2 > 0: st.write(f"• **{desc_extra2 or 'Outros 2'}:** {format_money(vlr_extra2)}")
+                if vlr_extra3_val > 0: st.write(f"• **{desc_extra3 or 'Outros 3'}:** {format_money(vlr_extra3_val)}")
+            with col_c2:
+                st.write(f"• **Caução Depositada:** {format_money(vlr_caucao)}")
+
+        st.markdown("---")
+        st.subheader("📊 Prévia do Resultado Financeiro Apurado")
         
         col_esq, col_dir = st.columns([2, 1])
         
@@ -309,9 +356,9 @@ if btn_calcular:
         pdf.set_text_color(50, 50, 50)
         def add_row(label, val_str):
             pdf.set_font('Helvetica', 'B', 9)
-            pdf.cell(45, 6, label, 1, 0, 'L')
+            pdf.cell(50, 6, label, 1, 0, 'L')
             pdf.set_font('Helvetica', '', 9)
-            pdf.cell(145, 6, str(val_str), 1, 1, 'L')
+            pdf.cell(140, 6, str(val_str), 1, 1, 'L')
             
         add_row('Locador:', normalizar_texto(locador))
         add_row('Locatario:', normalizar_texto(locatario))
@@ -330,8 +377,27 @@ if btn_calcular:
         add_row('Fim do Contrato:', dt_fim.strftime('%d/%m/%Y') if dt_fim else "Nao informado")
         add_row('Data Rescisao/Chaves:', dt_rescisao.strftime('%d/%m/%Y') if dt_rescisao else "Nao informado")
         pdf.ln(4)
+
+        # Seção 3 - AUDITORIA DE PARÂMETROS DIGITADOS
+        pdf.set_fill_color(44, 62, 80)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.cell(0, 6, ' PARAMETROS E DADOS INFORMADOS PARA O CALCULO', 0, 1, 'L', fill=True)
+        pdf.ln(2)
+
+        add_row('Aluguel Base / Tipo / Status:', f"{format_money(aluguel)} | {tipo_aluguel} | {status_aluguel}")
+        add_row('Modelo Ciclo Aluguel:', f"{modelo_ciclo_aluguel} (Vencimento Dia {dia_vencimento_aluguel})")
+        add_row('Condominio Mensal / Tipo / Status:', f"{format_money(vlr_condominio)} | {tipo_condominio} | {status_condominio}")
+        add_row('IPTU Anual / Já Pago pelo Locatário:', f"{format_money(iptu_anual)} | {format_money(iptu_pago)}")
+        if cal_seguro:
+            dt_seg_str = dt_seguro_inicio.strftime('%d/%m/%Y') if dt_seguro_inicio else "Nao informado"
+            add_row('Seguro Incendio (Inicio / Anual / Pago):', f"Inicio {dt_seg_str} | Anual {format_money(vlr_seguro_anual)} | Pago {format_money(vlr_seguro_pago)}")
+        else:
+            add_row('Seguro Incendio:', 'Nao Calculado')
+        add_row('Multa Rescisoria Aplicada:', 'Sim' if aplicar_multa else 'Nao')
+        pdf.ln(4)
         
-        # Seção 3
+        # Seção 4 - APURAÇÃO FINANCEIRA
         pdf.set_fill_color(44, 62, 80)
         pdf.set_text_color(255, 255, 255)
         pdf.set_font('Helvetica', 'B', 10)
