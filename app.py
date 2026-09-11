@@ -39,7 +39,7 @@ st.set_page_config(page_title="Encerramento de Contrato", page_icon="📄", layo
 st.title("📄 Painel de Encerramento de Contrato de Locação")
 st.write("Preencha os dados abaixo para calcular os valores e gerar o Termo de Encerramento em PDF.")
 
-# Form de Entrada de Dados com campos zerados e vazios
+# Form de Entrada de Dados
 with st.form("form_encerramento"):
     st.subheader("1. Dados do Contrato e Partes")
     c1, c2 = st.columns(2)
@@ -53,11 +53,11 @@ with st.form("form_encerramento"):
     st.subheader("2. Prazos e Aluguel Base")
     c3, c4, c5, c6 = st.columns(4)
     with c3:
-        dt_inicio = st.date_input("Data Início Contrato", value=date.today())
+        dt_inicio = st.date_input("Data Início Contrato", value=date.today(), format="DD/MM/YYYY")
     with c4:
-        dt_fim = st.date_input("Data Fim Contrato", value=date.today())
+        dt_fim = st.date_input("Data Fim Contrato", value=date.today(), format="DD/MM/YYYY")
     with c5:
-        dt_rescisao = st.date_input("Data Rescisão / Chaves", value=date.today())
+        dt_rescisao = st.date_input("Data Rescisão / Chaves", value=date.today(), format="DD/MM/YYYY")
     with c6:
         aluguel = st.number_input("Valor do Último Aluguel (R$)", value=0.0, min_value=0.0, step=100.0)
 
@@ -79,7 +79,7 @@ with st.form("form_encerramento"):
     with c12:
         iptu_pago = st.number_input("IPTU Já Pago Locatário (R$)", value=0.0, min_value=0.0)
     with c13:
-        dt_seguro_inicio = st.date_input("Início Ciclo Seguro Incêndio", value=date.today())
+        dt_seguro_inicio = st.date_input("Início Ciclo Seguro Incêndio", value=date.today(), format="DD/MM/YYYY")
     with c14:
         vlr_seguro_anual = st.number_input("Valor Seguro Anual (R$)", value=0.0, min_value=0.0)
     
@@ -224,7 +224,7 @@ if btn_calcular:
     add_row('Inscricao IPTU/TLP:', normalizar_texto(iptu_num))
     pdf.ln(4)
     
-    # Seção 2
+    # Seção 2 (Formatação dd/mm/aaaa)
     pdf.set_fill_color(44, 62, 80)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font('Helvetica', 'B', 10)
