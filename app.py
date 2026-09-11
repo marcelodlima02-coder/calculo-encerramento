@@ -39,7 +39,7 @@ st.set_page_config(page_title="Encerramento de Contrato", page_icon="📄", layo
 st.title("📄 Painel de Encerramento de Contrato de Locação")
 st.write("Preencha os dados abaixo para calcular os valores, visualizar a prévia na tela e gerar o Termo em PDF.")
 
-# Form de Entrada de Dados com datas e campos vazios por padrão
+# Form de Entrada de Dados
 with st.form("form_encerramento"):
     st.subheader("1. Dados do Contrato e Partes")
     c1, c2 = st.columns(2)
@@ -73,27 +73,37 @@ with st.form("form_encerramento"):
         aplicar_multa = st.checkbox("Aplicar Multa Rescisória?", value=False)
 
     st.subheader("4. IPTU/TLP e Seguro Incêndio")
-    c11, c12, c13, c14 = st.columns(4)
+    c11, c12 = st.columns(2)
     with c11:
         iptu_anual = st.number_input("Valor IPTU+TLP Anual (R$)", value=0.0, min_value=0.0)
     with c12:
         iptu_pago = st.number_input("IPTU Já Pago Locatário (R$)", value=0.0, min_value=0.0)
-    with c13:
-        dt_seguro_inicio = st.date_input("Início Ciclo Seguro Incêndio", value=None, format="DD/MM/YYYY")
-    with c14:
-        vlr_seguro_anual = st.number_input("Valor Seguro Anual (R$)", value=0.0, min_value=0.0)
+
+    st.markdown("---")
+    cal_seguro = st.checkbox("Calcular Reembolso / Cobrança de Seguro Incêndio?", value=False)
     
-    reembolso_seguro = st.checkbox("Reembolsar Seguro Incêndio Proporcional?", value=False)
+    dt_seguro_inicio = None
+    vlr_seguro_anual = 0.0
+    vlr_seguro_pago = 0.0
+    
+    if cal_seguro:
+        c13, c14, c15 = st.columns(3)
+        with c13:
+            dt_seguro_inicio = st.date_input("Início do Ciclo do Seguro", value=None, format="DD/MM/YYYY")
+        with c14:
+            vlr_seguro_anual = st.number_input("Valor Seguro Anual (R$)", value=0.0, min_value=0.0)
+        with c15:
+            vlr_seguro_pago = st.number_input("Valor Seguro Pago pelo Locatário (R$)", value=0.0, min_value=0.0)
 
     st.subheader("5. Reparos, Outros Lançamentos e Caução")
-    c15, c16 = st.columns(2)
-    with c15:
+    c16, c17 = st.columns(2)
+    with c16:
         vlr_reparos = st.number_input("Reparos / Danos Imóvel (R$)", value=0.0, min_value=0.0)
         desc_extra1 = st.text_input("Outros 1 - Descrição", value="", placeholder="Ex: Pintura")
         vlr_extra1 = st.number_input("Outros 1 - Valor (R$)", value=0.0, min_value=0.0)
         desc_extra2 = st.text_input("Outros 2 - Descrição", value="", placeholder="Ex: Troca de Fechadura")
         vlr_extra2 = st.number_input("Outros 2 - Valor (R$)", value=0.0, min_value=0.0)
-    with c16:
+    with c17:
         desc_extra3 = st.text_input("Outros 3 - Descrição", value="", placeholder="Ex: Limpeza")
         vlr_extra3_val = st.number_input("Outros 3 - Valor (R$)", value=0.0, min_value=0.0)
         vlr_caucao = st.number_input("Valor Caução Depositada (R$)", value=0.0, min_value=0.0)
@@ -116,7 +126,7 @@ if btn_calcular:
         if aluguel_prop > 0:
             itens_financeiros.append({"nome": "Aluguel proporcional mes corrente", "valor": aluguel_prop})
 
-        # 2. Condomínio Proporcional (Tratamento com desmembramento para Vencido + Não Pago)
+        # 2. Condomínio Proporcional
         vlr_dia_cond = vlr_condominio / 30.0
         dias_usufruidos = min(dias_mes_saida, 30)
         dias_nao_usufruidos = 30 - dias_usufruidos
@@ -135,7 +145,6 @@ if btn_calcular:
                 if vlr_cond_calc > 0:
                     itens_financeiros.append({"nome": "Condominio Proporcional", "valor": vlr_cond_calc})
             else:
-                # SEPARAÇÃO EM DUAS RUBRICAS QUANDO VENCIDO E NÃO PAGO
                 vlr_mes_anterior = round(vlr_condominio, 2)
                 vlr_prop_atual = round(vlr_dia_cond * dias_usufruidos, 2)
                 
@@ -167,13 +176,17 @@ if btn_calcular:
                 st.warning("⚠️ Para calcular a Multa Rescisória, informe também as Datas de Início e Fim do Contrato.")
 
         # 5. Seguro Incêndio
-        seguro_reembolso_calc = 0.0
-        if reembolso_seguro and dt_seguro_inicio and vlr_seguro_anual > 0:
-            dias_efetivos = (dt_rescisao - dt_seguro_inicio).days + 1
-            if dias_efetivos > 0:
-                seguro_reembolso_calc = round((vlr_seguro_anual / 365.0) * dias_efetivos * 0.8025, 2)
-                if seguro_reembolso_calc > 0:
-                    itens_financeiros.append({"nome": "Reembolso Seguro Incendio Proporcional", "valor": -seguro_reembolso_calc})
+        if cal_seguro and dt_seguro_inicio and vlr_seguro_anual > 0:
+            dias_seguro = (dt_rescisao - dt_seguro_inicio).days
+            if dias_seguro >= 0:
+                vlr_devido_bruto = (vlr_seguro_anual / 365.0) * dias_seguro
+                diferenca_seguro = vlr_devido_bruto - vlr_seguro_pago
+                resultado_seguro = round(diferenca_seguro * 0.8025, 2)
+                
+                if resultado_seguro < 0:
+                    itens_financeiros.append({"nome": "Reembolso Seguro Incendio Proporcional", "valor": resultado_seguro})
+                elif resultado_seguro > 0:
+                    itens_financeiros.append({"nome": "Cobranca Seguro Incendio Proporcional", "valor": resultado_seguro})
 
         # Reparos e Outros Lançamentos Extras
         if vlr_reparos > 0:
@@ -188,9 +201,7 @@ if btn_calcular:
         total_debitos = sum(item["valor"] for item in itens_financeiros)
         saldo_final = total_debitos - vlr_caucao
 
-        # -------------------------------------------------------------
-        # PRÉVIA DOS CÁLCULOS NA TELA (ANTES DO DOWNLOAD)
-        # -------------------------------------------------------------
+        # Prévia na Tela
         st.markdown("---")
         st.subheader("📋 Prévia do Acerto Financeiro (Conferência na Tela)")
         
@@ -215,9 +226,7 @@ if btn_calcular:
         st.markdown("---")
         st.write("🔍 **Revise os valores acima.** Se estiver tudo correto, clique no botão abaixo para baixar o Termo oficial em PDF:")
 
-        # -------------------------------------------------------------
-        # GERAÇÃO DO PDF
-        # -------------------------------------------------------------
+        # PDF
         pdf = FPDF()
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
@@ -235,7 +244,7 @@ if btn_calcular:
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(6)
         
-        # Seção 1: Dados do Contrato
+        # Seção 1
         pdf.set_fill_color(44, 62, 80)
         pdf.set_text_color(255, 255, 255)
         pdf.set_font('Helvetica', 'B', 10)
@@ -255,7 +264,7 @@ if btn_calcular:
         add_row('Inscricao IPTU/TLP:', normalizar_texto(iptu_num))
         pdf.ln(4)
         
-        # Seção 2: Prazos e Datas
+        # Seção 2
         pdf.set_fill_color(44, 62, 80)
         pdf.set_text_color(255, 255, 255)
         pdf.set_font('Helvetica', 'B', 10)
@@ -267,7 +276,7 @@ if btn_calcular:
         add_row('Data Rescisao/Chaves:', dt_rescisao.strftime('%d/%m/%Y') if dt_rescisao else "Nao informado")
         pdf.ln(4)
         
-        # Seção 3: Apuração Financeira
+        # Seção 3
         pdf.set_fill_color(44, 62, 80)
         pdf.set_text_color(255, 255, 255)
         pdf.set_font('Helvetica', 'B', 10)
@@ -289,7 +298,7 @@ if btn_calcular:
             
         pdf.ln(4)
         
-        # Box Total Final
+        # Box Total
         if saldo_final > 0:
             label_tot = "VALOR A SER COBRADO DO LOCATARIO: "
             val_tot_str = format_money(saldo_final)
@@ -329,7 +338,6 @@ if btn_calcular:
         pdf.text(115, y_sig + 5, normalizar_texto(locador)[:30])
         pdf.text(125, y_sig + 9, 'Locador (ou Representante)')
         
-        # Tratamento seguro da saída em bytes
         pdf_out = pdf.output()
         if isinstance(pdf_out, (bytes, bytearray)):
             pdf_bytes = bytes(pdf_out)
