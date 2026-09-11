@@ -36,6 +36,15 @@ def format_money(val):
 
 st.set_page_config(page_title="Encerramento de Contrato", page_icon="📄", layout="wide")
 
+# Exibição da Logo da MRC (busca primeiro a imagem do repositório da intranet)
+try:
+    st.image("https://raw.githubusercontent.com/mrcimoveis-coder/intranet/main/logo.jpeg", width=180)
+except Exception:
+    try:
+        st.image("logo.jpeg", width=180)
+    except Exception:
+        pass
+
 st.title("📄 Painel de Encerramento de Contrato de Locação")
 st.write("Preencha os dados abaixo para calcular os valores, visualizar a prévia na tela e gerar o Termo em PDF.")
 
