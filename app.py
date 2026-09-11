@@ -142,18 +142,17 @@ if btn_calcular:
 
         if tipo_aluguel == "Vincendo":
             if status_aluguel == "Pago":
-                val_aluguel_calc = -round(val_dia_aluguel * dias_nao_usufruidos_aluguel, 2)
+                dias_reembolso_vincendo = 30 - min(dia_saida, 30)
+                val_aluguel_calc = -round(val_dia_aluguel * dias_reembolso_vincendo, 2)
                 if val_aluguel_calc < 0:
                     itens_financeiros.append({"nome": "Reembolso Aluguel Proporcional (Vincendo)", "valor": val_aluguel_calc})
             else:
-                val_aluguel_calc = round(val_dia_aluguel * dias_ocupados_aluguel, 2)
+                val_aluguel_calc = round(val_dia_aluguel * min(dia_saida, 30), 2)
                 if val_aluguel_calc > 0:
                     itens_financeiros.append({"nome": "Aluguel Proporcional Mes Encerramento", "valor": val_aluguel_calc})
         else: # Vencido
             if status_aluguel == "Pago":
                 if dia_saida < dia_vencimento_aluguel and not eh_mes_fechado:
-                    # Inquilino pagou o boleto do dia_vencimento (coberta a permanência até dia_vencimento).
-                    # Como saiu no dia_saida (< dia_vencimento), pagou a mais -> Reembolso dos dias não usufruídos!
                     val_aluguel_calc = -round(val_dia_aluguel * dias_nao_usufruidos_aluguel, 2)
                     if val_aluguel_calc < 0:
                         itens_financeiros.append({"nome": "Reembolso Aluguel Proporcional (Vencido)", "valor": val_aluguel_calc})
