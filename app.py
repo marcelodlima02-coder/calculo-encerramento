@@ -1,10 +1,5 @@
 import io
-import smtplib
 from datetime import datetime, date
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email.mime.text import MIMEText
-from email import encoders
 import streamlit as st
 from fpdf import FPDF
 
@@ -122,10 +117,31 @@ with st.form("form_encerramento"):
 
     btn_calcular = st.form_submit_button("🚀 Calcular e Visualizar Acerto", type="primary")
 
-# Processamento do Cálculo
+# Validação e Processamento dos Cálculos
 if btn_calcular:
+    erros_validacao = []
+
+    # 1. Validação do Campo Geral Obrigatório
     if not dt_rescisao:
-        st.warning("⚠️ Por favor, selecione a Data de Rescisão / Chaves para realizar os cálculos.")
+        erros_validacao.append("Data Rescisão / Chaves não foi informada.")
+
+    # 2. Validação Dependente: Multa Rescisória
+    if aplicar_multa:
+        if not dt_inicio or not dt_fim:
+            erros_validacao.append("A opção 'Aplicar Multa Rescisória' está marcada, mas as Datas de Início e Fim do Contrato não foram informadas.")
+
+    # 3. Validação Dependente: Seguro Incêndio
+    if cal_seguro:
+        if not dt_seguro_inicio:
+            erros_validacao.append("A opção 'Calcular Seguro Incêndio' está marcada, mas a Data de Início do Ciclo do Seguro não foi informada.")
+        if vlr_seguro_anual <= 0:
+            erros_validacao.append("A opção 'Calcular Seguro Incêndio' está marcada, mas o Valor Seguro Anual precisa ser maior que R$ 0,00.")
+
+    # Se existirem erros de validação, bloqueia a execução
+    if erros_validacao:
+        st.error("🚫 **Cálculo Bloqueado! Preencha as informações obrigatórias pendentes:**")
+        for err in erros_validacao:
+            st.write(f"• {err}")
     else:
         dia_saida = dt_rescisao.day
         itens_financeiros = []
@@ -217,39 +233,33 @@ if btn_calcular:
         # 4. Multa Rescisória
         multa_calc = 0.0
         if aplicar_multa:
-            if isinstance(dt_inicio, (date, datetime)) and isinstance(dt_fim, (date, datetime)):
-                d_in = dt_inicio.date() if isinstance(dt_inicio, datetime) else dt_inicio
-                d_fi = dt_fim.date() if isinstance(dt_fim, datetime) else dt_fim
-                d_re = dt_rescisao.date() if isinstance(dt_rescisao, datetime) else dt_rescisao
-                
-                prazo_total = (d_fi - d_in).days
-                tempo_decorrido = (d_re - d_in).days
-                dias_restantes = prazo_total - tempo_decorrido
-                
-                if prazo_total > 0 and dias_restantes > 0:
-                    multa_calc = round(((aluguel * 3.0) / prazo_total) * dias_restantes, 2)
-                    if multa_calc > 0:
-                        itens_financeiros.append({"nome": "Multa Rescisoria Contratual", "valor": multa_calc})
-            else:
-                st.warning("⚠️ Para calcular a Multa Rescisória, informe também as Datas de Início e Fim do Contrato.")
+            d_in = dt_inicio.date() if isinstance(dt_inicio, datetime) else dt_inicio
+            d_fi = dt_fim.date() if isinstance(dt_fim, datetime) else dt_fim
+            d_re = dt_rescisao.date() if isinstance(dt_rescisao, datetime) else dt_rescisao
+            
+            prazo_total = (d_fi - d_in).days
+            tempo_decorrido = (d_re - d_in).days
+            dias_restantes = prazo_total - tempo_decorrido
+            
+            if prazo_total > 0 and dias_restantes > 0:
+                multa_calc = round(((aluguel * 3.0) / prazo_total) * dias_restantes, 2)
+                if multa_calc > 0:
+                    itens_financeiros.append({"nome": "Multa Rescisoria Contratual", "valor": multa_calc})
 
-        # 5. Seguro Incêndio (Validação com alerta amigável)
+        # 5. Seguro Incêndio
         if cal_seguro:
-            if dt_seguro_inicio and vlr_seguro_anual > 0:
-                d_seg_in = dt_seguro_inicio.date() if isinstance(dt_seguro_inicio, datetime) else dt_seguro_inicio
-                d_re = dt_rescisao.date() if isinstance(dt_rescisao, datetime) else dt_rescisao
-                dias_seguro = (d_re - d_seg_in).days
-                if dias_seguro >= 0:
-                    vlr_devido_bruto = (vlr_seguro_anual / 365.0) * dias_seguro
-                    diferenca_seguro = vlr_devido_bruto - vlr_seguro_pago
-                    resultado_seguro = round(diferenca_seguro * 0.8025, 2)
-                    
-                    if resultado_seguro < 0:
-                        itens_financeiros.append({"nome": "Reembolso Seguro Incendio Proporcional", "valor": resultado_seguro})
-                    elif resultado_seguro > 0:
-                        itens_financeiros.append({"nome": "Cobranca Seguro Incendio Proporcional", "valor": resultado_seguro})
-            else:
-                st.warning("⚠️ Para calcular o Seguro Incêndio, informe a Data de Início do Ciclo e o Valor Seguro Anual.")
+            d_seg_in = dt_seguro_inicio.date() if isinstance(dt_seguro_inicio, datetime) else dt_seguro_inicio
+            d_re = dt_rescisao.date() if isinstance(dt_rescisao, datetime) else dt_rescisao
+            dias_seguro = (d_re - d_seg_in).days
+            if dias_seguro >= 0:
+                vlr_devido_bruto = (vlr_seguro_anual / 365.0) * dias_seguro
+                diferenca_seguro = vlr_devido_bruto - vlr_seguro_pago
+                resultado_seguro = round(diferenca_seguro * 0.8025, 2)
+                
+                if resultado_seguro < 0:
+                    itens_financeiros.append({"nome": "Reembolso Seguro Incendio Proporcional", "valor": resultado_seguro})
+                elif resultado_seguro > 0:
+                    itens_financeiros.append({"nome": "Cobranca Seguro Incendio Proporcional", "valor": resultado_seguro})
 
         # Reparos e Outros Lançamentos Extras
         if vlr_reparos > 0:
