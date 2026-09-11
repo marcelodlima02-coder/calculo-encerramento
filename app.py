@@ -55,9 +55,9 @@ with st.form("form_encerramento"):
     with c3:
         dt_inicio = st.date_input("Data Início Contrato", value=None, format="DD/MM/YYYY", key="dt_inicio")
     with c4:
-        dt_fim = st.date_input("Data Fim Contrato", value=None, format="DD/MM/YYYY", key="dt_fim")
+        dt_fim = st.date_input("Data Fim Contrato (Obrigatória)", value=None, format="DD/MM/YYYY", key="dt_fim")
     with c5:
-        dt_rescisao = st.date_input("Data Rescisão / Chaves", value=None, format="DD/MM/YYYY", key="dt_rescisao")
+        dt_rescisao = st.date_input("Data Rescisão / Chaves (Obrigatória)", value=None, format="DD/MM/YYYY", key="dt_rescisao")
     with c6:
         aluguel = st.number_input("Valor do Último Aluguel (R$)", value=0.0, min_value=0.0, step=100.0)
 
@@ -82,6 +82,12 @@ with st.form("form_encerramento"):
         status_condominio = st.selectbox("Status Condomínio Mês Rescisão", ["Pago", "Não Pago"])
     with c14:
         aplicar_multa = st.checkbox("Aplicar Multa Rescisória?", value=False)
+
+    justificativa_multa = st.text_input(
+        "Justificativa para Isenção / Não Cobrança da Multa Rescisória",
+        value="",
+        placeholder="Obrigatório preencher caso o contrato ainda estivesse vigente e a multa não seja cobrada"
+    )
 
     st.subheader("4. IPTU/TLP e Seguro Incêndio")
     c15, c16 = st.columns(2)
@@ -121,14 +127,26 @@ with st.form("form_encerramento"):
 if btn_calcular:
     erros_validacao = []
 
-    # 1. Validação do Campo Geral Obrigatório
+    # 1. Validação de Datas Obrigatórias Principais
     if not dt_rescisao:
         erros_validacao.append("Data Rescisão / Chaves não foi informada.")
+    if not dt_fim:
+        erros_validacao.append("Data Fim do Contrato não foi informada (campo obrigatório).")
 
-    # 2. Validação Dependente: Multa Rescisória
+    d_re = dt_rescisao.date() if isinstance(dt_rescisao, datetime) else dt_rescisao if dt_rescisao else None
+    d_fi = dt_fim.date() if isinstance(dt_fim, datetime) else dt_fim if dt_fim else None
+    d_in = dt_inicio.date() if isinstance(dt_inicio, datetime) else dt_inicio if dt_inicio else None
+
+    # 2. Validação Estrita de Vigência do Contrato e Multa Rescisória
+    if d_re and d_fi:
+        if d_re < d_fi:
+            if not aplicar_multa:
+                if not justificativa_multa or not justificativa_multa.strip():
+                    erros_validacao.append(f"O contrato encerrou em {d_re.strftime('%d/%m/%Y')}, ainda dentro da vigência (Data Fim: {d_fi.strftime('%d/%m/%Y')}). Por não ter marcado a Multa Rescisória, é OBRIGATÓRIO preencher o campo de justificativa para a isenção.")
+
     if aplicar_multa:
-        if not dt_inicio or not dt_fim:
-            erros_validacao.append("A opção 'Aplicar Multa Rescisória' está marcada, mas as Datas de Início e Fim do Contrato não foram informadas.")
+        if not dt_inicio:
+            erros_validacao.append("A opção 'Aplicar Multa Rescisória' está marcada, mas a Data Início do Contrato não foi informada.")
 
     # 3. Validação Dependente: Seguro Incêndio
     if cal_seguro:
@@ -137,9 +155,9 @@ if btn_calcular:
         if vlr_seguro_anual <= 0:
             erros_validacao.append("A opção 'Calcular Seguro Incêndio' está marcada, mas o Valor Seguro Anual precisa ser maior que R$ 0,00.")
 
-    # Se existirem erros de validação, bloqueia a execução
+    # Se existirem erros de validação, bloqueia a execução do acerto
     if erros_validacao:
-        st.error("🚫 **Cálculo Bloqueado! Preencha as informações obrigatórias pendentes:**")
+        st.error("🚫 **Cálculo Bloqueado! Corrija os pontos pendentes para prosseguir:**")
         for err in erros_validacao:
             st.write(f"• {err}")
     else:
@@ -233,10 +251,6 @@ if btn_calcular:
         # 4. Multa Rescisória
         multa_calc = 0.0
         if aplicar_multa:
-            d_in = dt_inicio.date() if isinstance(dt_inicio, datetime) else dt_inicio
-            d_fi = dt_fim.date() if isinstance(dt_fim, datetime) else dt_fim
-            d_re = dt_rescisao.date() if isinstance(dt_rescisao, datetime) else dt_rescisao
-            
             prazo_total = (d_fi - d_in).days
             tempo_decorrido = (d_re - d_in).days
             dias_restantes = prazo_total - tempo_decorrido
@@ -249,7 +263,6 @@ if btn_calcular:
         # 5. Seguro Incêndio
         if cal_seguro:
             d_seg_in = dt_seguro_inicio.date() if isinstance(dt_seguro_inicio, datetime) else dt_seguro_inicio
-            d_re = dt_rescisao.date() if isinstance(dt_rescisao, datetime) else dt_rescisao
             dias_seguro = (d_re - d_seg_in).days
             if dias_seguro >= 0:
                 vlr_devido_bruto = (vlr_seguro_anual / 365.0) * dias_seguro
@@ -295,12 +308,19 @@ if btn_calcular:
                 st.write(f"• **Tipo / Status Aluguel:** {tipo_aluguel} | {status_aluguel}")
                 st.write(f"• **Ciclo Aluguel:** {modelo_ciclo_aluguel} (Venc. Dia {dia_vencimento_aluguel})")
 
-            st.markdown("##### 2. Condomínio, IPTU e Seguro Incêndio")
+            st.markdown("##### 2. Condomínio, IPTU, Multa e Seguro Incêndio")
             col_b1, col_b2, col_b3 = st.columns(3)
             with col_b1:
                 st.write(f"• **Condomínio Mensal:** {format_money(vlr_condominio)}")
                 st.write(f"• **Tipo / Status Condomínio:** {tipo_condominio} | {status_condominio}")
-                st.write(f"• **Multa Rescisória Aplicada:** {'Sim' if aplicar_multa else 'Não'}")
+                if aplicar_multa:
+                    st.write("• **Multa Rescisória:** Aplicada no Cálculo")
+                else:
+                    if d_re and d_fi and d_re < d_fi:
+                        st.write("• **Multa Rescisória:** Isentada / Não Aplicada")
+                        st.write(f"• **Justificativa da Isenção:** `{justificativa_multa}`")
+                    else:
+                        st.write("• **Multa Rescisória:** Não Aplicada (Prazo Encerrado)")
             with col_b2:
                 st.write(f"• **IPTU Anual:** {format_money(iptu_anual)}")
                 st.write(f"• **IPTU Já Pago pelo Locatário:** {format_money(iptu_pago)}")
@@ -409,7 +429,15 @@ if btn_calcular:
             add_pdf_row('Seguro Incendio (Inicio / Anual / Pago):', f"Inicio {dt_seg_str} | Anual {format_money(vlr_seguro_anual)} | Pago {format_money(vlr_seguro_pago)}")
         else:
             add_pdf_row('Seguro Incendio:', 'Nao Calculado')
-        add_pdf_row('Multa Rescisoria Aplicada:', 'Sim' if aplicar_multa else 'Nao')
+
+        if aplicar_multa:
+            add_pdf_row('Multa Rescisoria:', 'Aplicada no Calculo')
+        else:
+            if d_re and d_fi and d_re < d_fi:
+                add_pdf_row('Multa Rescisoria / Justificativa:', f"Isentada - {justificativa_multa}")
+            else:
+                add_pdf_row('Multa Rescisoria:', 'Nao Aplicada (Prazo Encerrado)')
+
         pdf.ln(4)
         
         # Seção 4 - APURAÇÃO FINANCEIRA
