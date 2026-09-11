@@ -1,6 +1,5 @@
 import io
-import openpyxl
-from datetime import datetime
+from datetime import datetime, date
 import streamlit as st
 from fpdf import FPDF
 
@@ -25,14 +24,6 @@ def normalizar_texto(texto):
         s = s.replace(k, v)
     return s
 
-def get_val(ws, r, c):
-    return ws.cell(row=r, column=c).value
-
-def format_date(val):
-    if isinstance(val, datetime):
-        return val.strftime('%d/%m/%Y')
-    return str(val) if val else "Nao informado"
-
 def format_money(val):
     if val is None or val == "":
         return "R$ 0,00"
@@ -43,196 +34,275 @@ def format_money(val):
     except:
         return "R$ 0,00"
 
-st.set_page_config(page_title="Termo de Encerramento", page_icon="📄", layout="centered")
+st.set_page_config(page_title="Encerramento de Contrato", page_icon="📄", layout="wide")
 
-st.title("📄 Gerador de Termo de Encerramento de Contrato")
-st.write("Upload da planilha de encerramento para cálculo automático e geração do PDF de acerto.")
+st.title("📄 Painel de Encerramento de Contrato de Locação")
+st.write("Preencha os dados abaixo para calcular os valores e gerar o Termo de Encerramento em PDF.")
 
-file_excel = st.file_uploader("Selecione a Planilha de Encerramento (.xlsx)", type=["xlsx"])
+# Form de Entrada de Dados
+with st.form("form_encerramento"):
+    st.subheader("1. Dados do Contrato e Partes")
+    c1, c2 = st.columns(2)
+    with c1:
+        locador = st.text_input("Nome do Locador", value="Valter Vitelli")
+        imovel = st.text_input("Endereço do Imóvel", value="SHS Quadra 06 Conjunto A Bloco C Sala 218 - Brasil 21")
+    with c2:
+        locatario = st.text_input("Nome do Locatário", value="Waldemar Alves de Sousa Camacho Junior")
+        iptu_num = st.text_input("Inscrição IPTU/TLP", value="48665576")
 
-if file_excel:
-    if st.button("🚀 Gerar Termo em PDF", type="primary"):
-        with st.spinner("Processando calculos e gerando o PDF..."):
-            wb = openpyxl.load_workbook(file_excel, data_only=True)
-            ws = wb["Planilha1"]
-            
-            # Dados do Contrato
-            locador = normalizar_texto(get_val(ws, 4, 2))
-            locatario = normalizar_texto(get_val(ws, 5, 2))
-            imovel = normalizar_texto(get_val(ws, 6, 2))
-            iptu_num = normalizar_texto(get_val(ws, 7, 2))
-            
-            aluguel = float(get_val(ws, 9, 2) or 0.0)
-            dt_inicio_raw = get_val(ws, 14, 2)
-            dt_fim_raw = get_val(ws, 15, 2)
-            dt_rescisao_raw = get_val(ws, 15, 5)
-            
-            # 1. Multa Rescisoria
-            tem_multa_raw = get_val(ws, 17, 2)
-            flag_multa = str(tem_multa_raw).strip().upper() in ['1', 'S', 'SIM', 'TRUE']
-            multa_calc = 0.0
-            if flag_multa and isinstance(dt_inicio_raw, datetime) and isinstance(dt_fim_raw, datetime) and isinstance(dt_rescisao_raw, datetime):
-                prazo_total = (dt_fim_raw - dt_inicio_raw).days
-                tempo_decorrido = (dt_rescisao_raw - dt_inicio_raw).days
-                dias_restantes = prazo_total - tempo_decorrido
-                if prazo_total > 0 and dias_restantes > 0:
-                    multa_calc = round(((aluguel * 3) / prazo_total) * dias_restantes, 2)
+    st.subheader("2. Prazos e Aluguel Base")
+    c3, c4, c5, c6 = st.columns(4)
+    with c3:
+        dt_inicio = st.date_input("Data Início Contrato", value=date(2024, 1, 22))
+    with c4:
+        dt_fim = st.date_input("Data Fim Contrato", value=date(2025, 1, 21))
+    with c5:
+        dt_rescisao = st.date_input("Data Rescisão / Chaves", value=date(2026, 9, 15))
+    with c6:
+        aluguel = st.number_input("Valor do Último Aluguel (R$)", value=1331.70, min_value=0.0, step=100.0)
 
-            # 2. Seguro Incendio Reembolso
-            dt_incendio_inicio = get_val(ws, 12, 3)
-            vlr_seguro_total = float(get_val(ws, 12, 5) or 0.0)
-            reembolso_seguro_flag = str(get_val(ws, 13, 3)).strip().upper() in ['S', 'SIM', 'TRUE', '1']
-            
-            seguro_reembolso_calc = 0.0
-            if reembolso_seguro_flag and isinstance(dt_incendio_inicio, datetime) and isinstance(dt_rescisao_raw, datetime) and vlr_seguro_total > 0:
-                dias_efetivos = (dt_rescisao_raw - dt_incendio_inicio).days + 1
-                if dias_efetivos > 0:
-                    seguro_reembolso_calc = round((vlr_seguro_total / 365.0) * dias_efetivos * 0.8025, 2)
+    st.subheader("3. Regras de Condomínio e Multa")
+    c7, c8, c9, c10 = st.columns(4)
+    with c7:
+        vlr_condominio = st.number_input("Valor Mensal Condomínio (R$)", value=1065.03, min_value=0.0)
+    with c8:
+        tipo_condominio = st.selectbox("Tipo de Condomínio", ["Vincendo", "Vencido"])
+    with c9:
+        status_condominio = st.selectbox("Status Mês Rescisão", ["Pago", "Não Pago"])
+    with c10:
+        aplicar_multa = st.checkbox("Aplicar Multa Rescisória?", value=False)
 
-            # Itens Financeiros
-            itens_financeiros = []
-            total_debitos = 0.0
-            
-            for r in range(32, 42):
-                nome = get_val(ws, r, 1)
-                val = get_val(ws, r, 3)
-                
-                if r == 36 and flag_multa:
-                    val = multa_calc
-                
-                if r == 37 and reembolso_seguro_flag and seguro_reembolso_calc > 0:
-                    val = -seguro_reembolso_calc
-                
-                if val is not None and val != "" and float(val or 0) != 0 and nome is not None:
-                    v_float = float(val)
-                    total_debitos += v_float
-                    itens_financeiros.append({
-                        "nome": normalizar_texto(nome),
-                        "valor_str": format_money(v_float)
-                    })
+    st.subheader("4. IPTU/TLP e Seguro Incêndio")
+    c11, c12, c13, c14 = st.columns(4)
+    with c11:
+        iptu_anual = st.number_input("Valor IPTU+TLP Anual (R$)", value=2934.38, min_value=0.0)
+    with c12:
+        iptu_pago = st.number_input("IPTU Já Pago Locatário (R$)", value=1956.20, min_value=0.0)
+    with c13:
+        dt_seguro_inicio = st.date_input("Início Ciclo Seguro Incêndio", value=date(2025, 10, 1))
+    with c14:
+        vlr_seguro_anual = st.number_input("Valor Seguro Anual (R$)", value=580.00, min_value=0.0)
+    
+    reembolso_seguro = st.checkbox("Reembolsar Seguro Incêndio Proporcional?", value=True)
 
-            valor_caucao = float(get_val(ws, 42, 3) or 0.0) if ws.max_row >= 42 else 0.0
-            saldo_final = total_debitos - valor_caucao
-            
-            # Geracao do PDF com FPDF
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_auto_page_break(auto=True, margin=15)
-            
-            # Header
-            pdf.set_font('Helvetica', 'B', 15)
-            pdf.set_text_color(44, 62, 80)
-            pdf.cell(0, 8, 'TERMO DE ENCERRAMENTO DE CONTRATO', 0, 1, 'C')
-            pdf.set_font('Helvetica', '', 10)
-            pdf.set_text_color(127, 140, 141)
-            pdf.cell(0, 5, 'Resumo de Acerto Financeiro e Devolucao de Imovel', 0, 1, 'C')
-            pdf.ln(4)
-            pdf.set_draw_color(44, 62, 80)
-            pdf.set_line_width(0.8)
-            pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-            pdf.ln(6)
-            
-            # Secao 1: Dados do Contrato
-            pdf.set_fill_color(44, 62, 80)
-            pdf.set_text_color(255, 255, 255)
-            pdf.set_font('Helvetica', 'B', 10)
-            pdf.cell(0, 6, ' DADOS DO CONTRATO', 0, 1, 'L', fill=True)
-            pdf.ln(2)
-            
-            pdf.set_text_color(50, 50, 50)
-            def add_row(label, val_str):
-                pdf.set_font('Helvetica', 'B', 9)
-                pdf.cell(45, 6, label, 1, 0, 'L')
-                pdf.set_font('Helvetica', '', 9)
-                pdf.cell(145, 6, str(val_str), 1, 1, 'L')
-                
-            add_row('Locador:', locador)
-            add_row('Locatario:', locatario)
-            add_row('Imovel:', imovel)
-            add_row('Inscricao IPTU/TLP:', iptu_num)
-            pdf.ln(4)
-            
-            # Secao 2: Prazos e Datas
-            pdf.set_fill_color(44, 62, 80)
-            pdf.set_text_color(255, 255, 255)
-            pdf.set_font('Helvetica', 'B', 10)
-            pdf.cell(0, 6, ' PRAZOS E DATAS', 0, 1, 'L', fill=True)
-            pdf.ln(2)
-            
-            add_row('Inicio do Contrato:', format_date(dt_inicio_raw))
-            add_row('Fim do Contrato:', format_date(dt_fim_raw))
-            add_row('Data Rescisao/Chaves:', format_date(dt_rescisao_raw))
-            pdf.ln(4)
-            
-            # Secao 3: Apuracao Financeira
-            pdf.set_fill_color(44, 62, 80)
-            pdf.set_text_color(255, 255, 255)
-            pdf.set_font('Helvetica', 'B', 10)
-            pdf.cell(0, 6, ' APURACAO FINANCEIRA PARA ACERTO', 0, 1, 'L', fill=True)
-            pdf.ln(2)
-            
-            pdf.set_text_color(50, 50, 50)
-            for item in itens_financeiros:
-                pdf.set_font('Helvetica', '', 9)
-                pdf.cell(130, 6, item['nome'], 'B', 0, 'L')
-                pdf.set_font('Helvetica', 'B', 9)
-                pdf.cell(60, 6, item['valor_str'], 'B', 1, 'R')
-                
-            if valor_caucao > 0:
-                pdf.set_font('Helvetica', '', 9)
-                pdf.cell(130, 6, '(-) Abatimento de Caucao Depositada', 'B', 0, 'L')
-                pdf.set_font('Helvetica', 'B', 9)
-                pdf.cell(60, 6, f"-{format_money(valor_caucao)}", 'B', 1, 'R')
-                
-            pdf.ln(4)
-            
-            # Box Total Final
-            if saldo_final > 0:
-                label_tot = "VALOR A SER COBRADO DO LOCATARIO: "
-                val_tot_str = format_money(saldo_final)
-                fill_r, fill_g, fill_b = 245, 215, 215
-            elif saldo_final < 0:
-                label_tot = "VALOR A DEVOLVER AO LOCATARIO: "
-                val_tot_str = format_money(abs(saldo_final))
-                fill_r, fill_g, fill_b = 215, 245, 215
-            else:
-                label_tot = "ACERTO QUITADO: "
-                val_tot_str = "R$ 0,00"
-                fill_r, fill_g, fill_b = 230, 230, 230
-                
-            pdf.set_fill_color(fill_r, fill_g, fill_b)
-            pdf.set_font('Helvetica', 'B', 10)
-            pdf.set_text_color(30, 30, 30)
-            pdf.cell(120, 10, label_tot, 0, 0, 'R', fill=True)
-            pdf.cell(70, 10, val_tot_str + " ", 0, 1, 'R', fill=True)
-            pdf.ln(10)
-            
-            # Declaracao de Quitacao
-            pdf.set_font('Helvetica', '', 8)
-            pdf.set_text_color(100, 100, 100)
-            pdf.multi_cell(0, 4, 'Declaro para os devidos fins que as chaves do imovel acima citado foram entregues nesta data, estando as partes de acordo com os valores apurados neste termo para a quitacao final das obrigacoes financeiras inerentes ao contrato de locacao.')
-            pdf.ln(15)
-            
-            # Linhas de Assinatura
-            y_sig = pdf.get_y()
-            pdf.line(20, y_sig, 90, y_sig)
-            pdf.line(110, y_sig, 180, y_sig)
-            
-            pdf.set_font('Helvetica', 'B', 8)
-            pdf.set_text_color(50, 50, 50)
-            pdf.text(25, y_sig + 5, str(locatario)[:30])
-            pdf.text(42, y_sig + 9, 'Locatario')
-            
-            pdf.text(115, y_sig + 5, str(locador)[:30])
-            pdf.text(125, y_sig + 9, 'Locador (ou Representante)')
-            
-            pdf_out = pdf.output(dest='S').encode('latin-1')
+    st.subheader("5. Reparos, Outros Lançamentos e Caução")
+    c15, c16 = st.columns(2)
+    with c15:
+        vlr_reparos = st.number_input("Reparos / Danos Imóvel (R$)", value=0.0, min_value=0.0)
+        desc_extra1 = st.text_input("Outros 1 - Descrição")
+        vlr_extra1 = st.number_input("Outros 1 - Valor (R$)", value=0.0, min_value=0.0)
+        desc_extra2 = st.text_input("Outros 2 - Descrição")
+        vlr_extra2 = st.number_input("Outros 2 - Valor (R$)", value=0.0, min_value=0.0)
+    with c16:
+        vlr_extra3 = st.text_input("Outros 3 - Descrição")
+        vlr_extra3_val = st.number_input("Outros 3 - Valor (R$)", value=0.0, min_value=0.0)
+        vlr_caucao = st.number_input("Valor Caução Depositada (R$)", value=0.0, min_value=0.0)
 
-        st.success("✅ Termo em PDF gerado com sucesso!")
+    btn_calcular = st.form_submit_button("🚀 Calcular e Gerar Termo em PDF", type="primary")
+
+# Processamento do Cálculo após Envio do Formulário
+if btn_calcular:
+    dias_mes_saida = dt_rescisao.day
+    
+    # 1. Aluguel Proporcional (Mês comercial de 30 dias)
+    aluguel_prop = round((aluguel / 30.0) * min(dias_mes_saida, 30), 2)
+    
+    # 2. Condomínio Proporcional
+    vlr_dia_cond = vlr_condominio / 30.0
+    dias_usufruidos = min(dias_mes_saida, 30)
+    dias_nao_usufruidos = 30 - dias_usufruidos
+    
+    if tipo_condominio == "Vincendo":
+        if status_condominio == "Pago":
+            vlr_cond_calc = -round(vlr_dia_cond * dias_nao_usufruidos, 2)
+        else:
+            vlr_cond_calc = round(vlr_dia_cond * dias_usufruidos, 2)
+    else: # Vencido
+        if status_condominio == "Pago":
+            vlr_cond_calc = round(vlr_dia_cond * dias_usufruidos, 2)
+        else:
+            vlr_cond_calc = round(vlr_condominio + (vlr_dia_cond * dias_usufruidos), 2)
+
+    # 3. IPTU Proporcional
+    dt_inicio_ano = date(dt_rescisao.year, 1, 1)
+    dias_iptu = (dt_rescisao - dt_inicio_ano).days + 1
+    iptu_devido_ano = (iptu_anual / 365.0) * dias_iptu
+    iptu_prop = round(iptu_devido_ano - iptu_pago, 2)
+
+    # 4. Multa Rescisória
+    multa_calc = 0.0
+    if aplicar_multa:
+        prazo_total = (dt_fim - dt_inicio).days
+        tempo_decorrido = (dt_rescisao - dt_inicio).days
+        dias_restantes = prazo_total - tempo_decorrido
+        if prazo_total > 0 and dias_restantes > 0:
+            multa_calc = round(((aluguel * 3.0) / prazo_total) * dias_restantes, 2)
+
+    # 5. Seguro Incêndio
+    seguro_reembolso_calc = 0.0
+    if reembolso_seguro and dt_seguro_inicio and vlr_seguro_anual > 0:
+        dias_efetivos = (dt_rescisao - dt_seguro_inicio).days + 1
+        if dias_efetivos > 0:
+            seguro_reembolso_calc = round((vlr_seguro_anual / 365.0) * dias_efetivos * 0.8025, 2)
+
+    # Montagem da Lista de Itens do PDF
+    itens_financeiros = []
+    
+    if aluguel_prop > 0:
+        itens_financeiros.append({"nome": "Aluguel proporcional mes corrente", "valor": aluguel_prop})
+    if vlr_cond_calc != 0:
+        nome_cond = "Reembolso Condominio Proporcional (Vincendo)" if vlr_cond_calc < 0 else "Condominio Proporcional"
+        itens_financeiros.append({"nome": nome_cond, "valor": vlr_cond_calc})
+    if iptu_prop != 0:
+        itens_financeiros.append({"nome": "IPTU/TLP Proporcional", "valor": iptu_prop})
+    if multa_calc > 0:
+        itens_financeiros.append({"nome": "Multa Rescisoria Contratual", "valor": multa_calc})
+    if seguro_reembolso_calc > 0:
+        itens_financeiros.append({"nome": "Reembolso Seguro Incendio Proporcional", "valor": -seguro_reembolso_calc})
+    if vlr_reparos > 0:
+        itens_financeiros.append({"nome": "Reparos / Danos no Imovel", "valor": vlr_reparos})
+    if vlr_extra1 > 0:
+        itens_financeiros.append({"nome": desc_extra1 or "Outros Lancamentos 1", "valor": vlr_extra1})
+    if vlr_extra2 > 0:
+        itens_financeiros.append({"nome": desc_extra2 or "Outros Lancamentos 2", "valor": vlr_extra2})
+    if vlr_extra3_val > 0:
+        itens_financeiros.append({"nome": desc_extra3 or "Outros Lancamentos 3", "valor": vlr_extra3_val})
+
+    total_debitos = sum(item["valor"] for item in itens_financeiros)
+    saldo_final = total_debitos - vlr_caucao
+
+    # Resumo do Cálculo na Tela
+    st.markdown("---")
+    st.subheader("📊 Resumo do Acerto Calculado")
+    for item in itens_financeiros:
+        st.write(f"• **{item['nome']}**: {format_money(item['valor'])}")
+    if vlr_caucao > 0:
+        st.write(f"• **(-) Abatimento de Caução**: -{format_money(vlr_caucao)}")
+
+    if saldo_final > 0:
+        st.error(f"**VALOR A SER COBRADO DO LOCATÁRIO: {format_money(saldo_final)}**")
+    elif saldo_final < 0:
+        st.success(f"**VALOR A DEVOLVER AO LOCATÁRIO: {format_money(abs(saldo_final))}**")
+    else:
+        st.info("**ACERTO QUITADO: R$ 0,00**")
+
+    # Geração do PDF com FPDF
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    
+    # Header
+    pdf.set_font('Helvetica', 'B', 15)
+    pdf.set_text_color(44, 62, 80)
+    pdf.cell(0, 8, 'TERMO DE ENCERRAMENTO DE CONTRATO', 0, 1, 'C')
+    pdf.set_font('Helvetica', '', 10)
+    pdf.set_text_color(127, 140, 141)
+    pdf.cell(0, 5, 'Resumo de Acerto Financeiro e Devolucao de Imovel', 0, 1, 'C')
+    pdf.ln(4)
+    pdf.set_draw_color(44, 62, 80)
+    pdf.set_line_width(0.8)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(6)
+    
+    # Seção Dados do Contrato
+    pdf.set_fill_color(44, 62, 80)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font('Helvetica', 'B', 10)
+    pdf.cell(0, 6, ' DADOS DO CONTRATO', 0, 1, 'L', fill=True)
+    pdf.ln(2)
+    
+    pdf.set_text_color(50, 50, 50)
+    def add_row(label, val_str):
+        pdf.set_font('Helvetica', 'B', 9)
+        pdf.cell(45, 6, label, 1, 0, 'L')
+        pdf.set_font('Helvetica', '', 9)
+        pdf.cell(145, 6, str(val_str), 1, 1, 'L')
         
-        st.download_button(
-            label="📥 Baixar Termo de Encerramento (PDF)",
-            data=pdf_out,
-            file_name=f"Termo_Encerramento_{locatario.replace(' ', '_')}.pdf",
-            mime="application/pdf"
-        )
+    add_row('Locador:', normalizar_texto(locador))
+    add_row('Locatario:', normalizar_texto(locatario))
+    add_row('Imovel:', normalizar_texto(imovel))
+    add_row('Inscricao IPTU/TLP:', normalizar_texto(iptu_num))
+    pdf.ln(4)
+    
+    # Seção Prazos
+    pdf.set_fill_color(44, 62, 80)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font('Helvetica', 'B', 10)
+    pdf.cell(0, 6, ' PRAZOS E DATAS', 0, 1, 'L', fill=True)
+    pdf.ln(2)
+    
+    add_row('Inicio do Contrato:', dt_inicio.strftime('%d/%m/%Y'))
+    add_row('Fim do Contrato:', dt_fim.strftime('%d/%m/%Y'))
+    add_row('Data Rescisao/Chaves:', dt_rescisao.strftime('%d/%m/%Y'))
+    pdf.ln(4)
+    
+    # Seção Financeira
+    pdf.set_fill_color(44, 62, 80)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font('Helvetica', 'B', 10)
+    pdf.cell(0, 6, ' APURACAO FINANCEIRA PARA ACERTO', 0, 1, 'L', fill=True)
+    pdf.ln(2)
+    
+    pdf.set_text_color(50, 50, 50)
+    for item in itens_financeiros:
+        pdf.set_font('Helvetica', '', 9)
+        pdf.cell(130, 6, normalizar_texto(item['nome']), 'B', 0, 'L')
+        pdf.set_font('Helvetica', 'B', 9)
+        pdf.cell(60, 6, format_money(item['valor']), 'B', 1, 'R')
+        
+    if vlr_caucao > 0:
+        pdf.set_font('Helvetica', '', 9)
+        pdf.cell(130, 6, '(-) Abatimento de Caucao Depositada', 'B', 0, 'L')
+        pdf.set_font('Helvetica', 'B', 9)
+        pdf.cell(60, 6, f"-{format_money(vlr_caucao)}", 'B', 1, 'R')
+        
+    pdf.ln(4)
+    
+    # Total Box
+    if saldo_final > 0:
+        label_tot = "VALOR A SER COBRADO DO LOCATARIO: "
+        val_tot_str = format_money(saldo_final)
+        fill_r, fill_g, fill_b = 245, 215, 215
+    elif saldo_final < 0:
+        label_tot = "VALOR A DEVOLVER AO LOCATARIO: "
+        val_tot_str = format_money(abs(saldo_final))
+        fill_r, fill_g, fill_b = 215, 245, 215
+    else:
+        label_tot = "ACERTO QUITADO: "
+        val_tot_str = "R$ 0,00"
+        fill_r, fill_g, fill_b = 230, 230, 230
+        
+    pdf.set_fill_color(fill_r, fill_g, fill_b)
+    pdf.set_font('Helvetica', 'B', 10)
+    pdf.set_text_color(30, 30, 30)
+    pdf.cell(120, 10, label_tot, 0, 0, 'R', fill=True)
+    pdf.cell(70, 10, val_tot_str + " ", 0, 1, 'R', fill=True)
+    pdf.ln(10)
+    
+    # Declaração
+    pdf.set_font('Helvetica', '', 8)
+    pdf.set_text_color(100, 100, 100)
+    pdf.multi_cell(0, 4, 'Declaro para os devidos fins que as chaves do imovel acima citado foram entregues nesta data, estando as partes de acordo com os valores apurados neste termo para a quitacao final das obrigacoes financeiras inerentes ao contrato de locacao.')
+    pdf.ln(15)
+    
+    # Assinaturas
+    y_sig = pdf.get_y()
+    pdf.line(20, y_sig, 90, y_sig)
+    pdf.line(110, y_sig, 180, y_sig)
+    
+    pdf.set_font('Helvetica', 'B', 8)
+    pdf.set_text_color(50, 50, 50)
+    pdf.text(25, y_sig + 5, normalizar_texto(locatario)[:30])
+    pdf.text(42, y_sig + 9, 'Locatario')
+    
+    pdf.text(115, y_sig + 5, normalizar_texto(locador)[:30])
+    pdf.text(125, y_sig + 9, 'Locador (ou Representante)')
+    
+    pdf_bytes = pdf.output(dest='S').encode('latin-1')
+
+    st.download_button(
+        label="📥 Baixar Termo de Encerramento em PDF",
+        data=pdf_bytes,
+        file_name=f"Termo_Encerramento_{normalizar_texto(locatario).replace(' ', '_')}.pdf",
+        mime="application/pdf"
+    )
