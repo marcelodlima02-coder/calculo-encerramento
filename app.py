@@ -346,6 +346,14 @@ if btn_calcular:
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(6)
         
+        # Função auxiliar para tabela no PDF com redefinição explícita da cor do texto
+        def add_pdf_row(label, val_str):
+            pdf.set_font('Helvetica', 'B', 9)
+            pdf.set_text_color(50, 50, 50)
+            pdf.cell(60, 6, normalizar_texto(label), 1, 0, 'L')
+            pdf.set_font('Helvetica', '', 9)
+            pdf.cell(130, 6, normalizar_texto(val_str), 1, 1, 'L')
+
         # Seção 1
         pdf.set_fill_color(44, 62, 80)
         pdf.set_text_color(255, 255, 255)
@@ -353,17 +361,10 @@ if btn_calcular:
         pdf.cell(0, 6, ' DADOS DO CONTRATO', 0, 1, 'L', fill=True)
         pdf.ln(2)
         
-        pdf.set_text_color(50, 50, 50)
-        def add_row(label, val_str):
-            pdf.set_font('Helvetica', 'B', 9)
-            pdf.cell(50, 6, label, 1, 0, 'L')
-            pdf.set_font('Helvetica', '', 9)
-            pdf.cell(140, 6, str(val_str), 1, 1, 'L')
-            
-        add_row('Locador:', normalizar_texto(locador))
-        add_row('Locatario:', normalizar_texto(locatario))
-        add_row('Imovel:', normalizar_texto(imovel))
-        add_row('Inscricao IPTU/TLP:', normalizar_texto(iptu_num))
+        add_pdf_row('Locador:', locador)
+        add_pdf_row('Locatario:', locatario)
+        add_pdf_row('Imovel:', imovel)
+        add_pdf_row('Inscricao IPTU/TLP:', iptu_num)
         pdf.ln(4)
         
         # Seção 2
@@ -373,9 +374,9 @@ if btn_calcular:
         pdf.cell(0, 6, ' PRAZOS E DATAS', 0, 1, 'L', fill=True)
         pdf.ln(2)
         
-        add_row('Inicio do Contrato:', dt_inicio.strftime('%d/%m/%Y') if dt_inicio else "Nao informado")
-        add_row('Fim do Contrato:', dt_fim.strftime('%d/%m/%Y') if dt_fim else "Nao informado")
-        add_row('Data Rescisao/Chaves:', dt_rescisao.strftime('%d/%m/%Y') if dt_rescisao else "Nao informado")
+        add_pdf_row('Inicio do Contrato:', dt_inicio.strftime('%d/%m/%Y') if dt_inicio else "Nao informado")
+        add_pdf_row('Fim do Contrato:', dt_fim.strftime('%d/%m/%Y') if dt_fim else "Nao informado")
+        add_pdf_row('Data Rescisao/Chaves:', dt_rescisao.strftime('%d/%m/%Y') if dt_rescisao else "Nao informado")
         pdf.ln(4)
 
         # Seção 3 - AUDITORIA DE PARÂMETROS DIGITADOS
@@ -385,16 +386,16 @@ if btn_calcular:
         pdf.cell(0, 6, ' PARAMETROS E DADOS INFORMADOS PARA O CALCULO', 0, 1, 'L', fill=True)
         pdf.ln(2)
 
-        add_row('Aluguel Base / Tipo / Status:', f"{format_money(aluguel)} | {tipo_aluguel} | {status_aluguel}")
-        add_row('Modelo Ciclo Aluguel:', f"{modelo_ciclo_aluguel} (Vencimento Dia {dia_vencimento_aluguel})")
-        add_row('Condominio Mensal / Tipo / Status:', f"{format_money(vlr_condominio)} | {tipo_condominio} | {status_condominio}")
-        add_row('IPTU Anual / Já Pago pelo Locatário:', f"{format_money(iptu_anual)} | {format_money(iptu_pago)}")
+        add_pdf_row('Aluguel Base / Tipo / Status:', f"{format_money(aluguel)} | {tipo_aluguel} | {status_aluguel}")
+        add_pdf_row('Modelo Ciclo Aluguel:', f"{modelo_ciclo_aluguel} (Vencimento Dia {dia_vencimento_aluguel})")
+        add_pdf_row('Condominio Mensal / Tipo / Status:', f"{format_money(vlr_condominio)} | {tipo_condominio} | {status_condominio}")
+        add_pdf_row('IPTU Anual / Já Pago pelo Locatário:', f"{format_money(iptu_anual)} | {format_money(iptu_pago)}")
         if cal_seguro:
             dt_seg_str = dt_seguro_inicio.strftime('%d/%m/%Y') if dt_seguro_inicio else "Nao informado"
-            add_row('Seguro Incendio (Inicio / Anual / Pago):', f"Inicio {dt_seg_str} | Anual {format_money(vlr_seguro_anual)} | Pago {format_money(vlr_seguro_pago)}")
+            add_pdf_row('Seguro Incendio (Inicio / Anual / Pago):', f"Inicio {dt_seg_str} | Anual {format_money(vlr_seguro_anual)} | Pago {format_money(vlr_seguro_pago)}")
         else:
-            add_row('Seguro Incendio:', 'Nao Calculado')
-        add_row('Multa Rescisoria Aplicada:', 'Sim' if aplicar_multa else 'Nao')
+            add_pdf_row('Seguro Incendio:', 'Nao Calculado')
+        add_pdf_row('Multa Rescisoria Aplicada:', 'Sim' if aplicar_multa else 'Nao')
         pdf.ln(4)
         
         # Seção 4 - APURAÇÃO FINANCEIRA
