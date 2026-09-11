@@ -127,6 +127,7 @@ if btn_calcular:
         
         # 1. Aluguel Proporcional
         eh_mes_fechado = (modelo_ciclo_aluguel == "Mês Fechado (01 a 30)")
+        val_dia_aluguel = aluguel / 30.0
         
         if eh_mes_fechado:
             dias_ocupados_aluguel = min(dia_saida, 30)
@@ -134,12 +135,11 @@ if btn_calcular:
         else:
             if dia_saida >= dia_vencimento_aluguel:
                 dias_ocupados_aluguel = dia_saida - dia_vencimento_aluguel
+                dias_nao_usufruidos_aluguel = 30 - dias_ocupados_aluguel
             else:
                 dias_ocupados_aluguel = (30 - dia_vencimento_aluguel) + dia_saida
-            dias_nao_usufruidos_aluguel = 30 - dias_ocupados_aluguel
+                dias_nao_usufruidos_aluguel = dia_vencimento_aluguel - dia_saida
 
-        val_dia_aluguel = aluguel / 30.0
-        
         if tipo_aluguel == "Vincendo":
             if status_aluguel == "Pago":
                 val_aluguel_calc = -round(val_dia_aluguel * dias_nao_usufruidos_aluguel, 2)
@@ -151,16 +151,28 @@ if btn_calcular:
                     itens_financeiros.append({"nome": "Aluguel Proporcional Mes Encerramento", "valor": val_aluguel_calc})
         else: # Vencido
             if status_aluguel == "Pago":
-                val_aluguel_calc = round(val_dia_aluguel * dias_ocupados_aluguel, 2)
-                if val_aluguel_calc > 0:
-                    itens_financeiros.append({"nome": "Aluguel Proporcional Mes Encerramento", "valor": val_aluguel_calc})
+                if dia_saida < dia_vencimento_aluguel and not eh_mes_fechado:
+                    # Inquilino pagou o boleto do dia_vencimento (coberta a permanência até dia_vencimento).
+                    # Como saiu no dia_saida (< dia_vencimento), pagou a mais -> Reembolso dos dias não usufruídos!
+                    val_aluguel_calc = -round(val_dia_aluguel * dias_nao_usufruidos_aluguel, 2)
+                    if val_aluguel_calc < 0:
+                        itens_financeiros.append({"nome": "Reembolso Aluguel Proporcional (Vencido)", "valor": val_aluguel_calc})
+                else:
+                    val_aluguel_calc = round(val_dia_aluguel * dias_ocupados_aluguel, 2)
+                    if val_aluguel_calc > 0:
+                        itens_financeiros.append({"nome": "Aluguel Proporcional Mes Encerramento", "valor": val_aluguel_calc})
             else:
-                vlr_aluguel_mes_ant = round(aluguel, 2)
-                vlr_aluguel_prop = round(val_dia_aluguel * dias_ocupados_aluguel, 2)
-                if vlr_aluguel_mes_ant > 0:
-                    itens_financeiros.append({"nome": "Aluguel Mes Anterior (Vencido)", "valor": vlr_aluguel_mes_ant})
-                if vlr_aluguel_prop > 0:
-                    itens_financeiros.append({"nome": "Aluguel Proporcional Mes Encerramento", "valor": vlr_aluguel_prop})
+                if dia_saida >= dia_vencimento_aluguel or eh_mes_fechado:
+                    vlr_aluguel_mes_ant = round(aluguel, 2)
+                    vlr_aluguel_prop = round(val_dia_aluguel * dias_ocupados_aluguel, 2)
+                    if vlr_aluguel_mes_ant > 0:
+                        itens_financeiros.append({"nome": "Aluguel Mes Anterior (Vencido)", "valor": vlr_aluguel_mes_ant})
+                    if vlr_aluguel_prop > 0:
+                        itens_financeiros.append({"nome": "Aluguel Proporcional Mes Encerramento", "valor": vlr_aluguel_prop})
+                else:
+                    val_aluguel_calc = round(val_dia_aluguel * dias_ocupados_aluguel, 2)
+                    if val_aluguel_calc > 0:
+                        itens_financeiros.append({"nome": "Aluguel Proporcional Mes Encerramento", "valor": val_aluguel_calc})
 
         # 2. Condomínio Proporcional
         vlr_dia_cond = vlr_condominio / 30.0
