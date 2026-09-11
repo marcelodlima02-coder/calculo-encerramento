@@ -39,32 +39,32 @@ st.set_page_config(page_title="Encerramento de Contrato", page_icon="📄", layo
 st.title("📄 Painel de Encerramento de Contrato de Locação")
 st.write("Preencha os dados abaixo para calcular os valores e gerar o Termo de Encerramento em PDF.")
 
-# Form de Entrada de Dados
+# Form de Entrada de Dados com campos zerados e vazios
 with st.form("form_encerramento"):
     st.subheader("1. Dados do Contrato e Partes")
     c1, c2 = st.columns(2)
     with c1:
-        locador = st.text_input("Nome do Locador", value="Valter Vitelli")
-        imovel = st.text_input("Endereço do Imóvel", value="SHS Quadra 06 Conjunto A Bloco C Sala 218 - Brasil 21")
+        locador = st.text_input("Nome do Locador", value="", placeholder="Digite o nome do locador")
+        imovel = st.text_input("Endereço do Imóvel", value="", placeholder="Digite o endereço completo do imóvel")
     with c2:
-        locatario = st.text_input("Nome do Locatário", value="Waldemar Alves de Sousa Camacho Junior")
-        iptu_num = st.text_input("Inscrição IPTU/TLP", value="48665576")
+        locatario = st.text_input("Nome do Locatário", value="", placeholder="Digite o nome do locatário")
+        iptu_num = st.text_input("Inscrição IPTU/TLP", value="", placeholder="Digite a inscrição do IPTU")
 
     st.subheader("2. Prazos e Aluguel Base")
     c3, c4, c5, c6 = st.columns(4)
     with c3:
-        dt_inicio = st.date_input("Data Início Contrato", value=date(2024, 1, 22))
+        dt_inicio = st.date_input("Data Início Contrato", value=date.today())
     with c4:
-        dt_fim = st.date_input("Data Fim Contrato", value=date(2025, 1, 21))
+        dt_fim = st.date_input("Data Fim Contrato", value=date.today())
     with c5:
-        dt_rescisao = st.date_input("Data Rescisão / Chaves", value=date(2026, 9, 15))
+        dt_rescisao = st.date_input("Data Rescisão / Chaves", value=date.today())
     with c6:
-        aluguel = st.number_input("Valor do Último Aluguel (R$)", value=1331.70, min_value=0.0, step=100.0)
+        aluguel = st.number_input("Valor do Último Aluguel (R$)", value=0.0, min_value=0.0, step=100.0)
 
     st.subheader("3. Regras de Condomínio e Multa")
     c7, c8, c9, c10 = st.columns(4)
     with c7:
-        vlr_condominio = st.number_input("Valor Mensal Condomínio (R$)", value=1065.03, min_value=0.0)
+        vlr_condominio = st.number_input("Valor Mensal Condomínio (R$)", value=0.0, min_value=0.0)
     with c8:
         tipo_condominio = st.selectbox("Tipo de Condomínio", ["Vincendo", "Vencido"])
     with c9:
@@ -75,32 +75,32 @@ with st.form("form_encerramento"):
     st.subheader("4. IPTU/TLP e Seguro Incêndio")
     c11, c12, c13, c14 = st.columns(4)
     with c11:
-        iptu_anual = st.number_input("Valor IPTU+TLP Anual (R$)", value=2934.38, min_value=0.0)
+        iptu_anual = st.number_input("Valor IPTU+TLP Anual (R$)", value=0.0, min_value=0.0)
     with c12:
-        iptu_pago = st.number_input("IPTU Já Pago Locatário (R$)", value=1956.20, min_value=0.0)
+        iptu_pago = st.number_input("IPTU Já Pago Locatário (R$)", value=0.0, min_value=0.0)
     with c13:
-        dt_seguro_inicio = st.date_input("Início Ciclo Seguro Incêndio", value=date(2025, 10, 1))
+        dt_seguro_inicio = st.date_input("Início Ciclo Seguro Incêndio", value=date.today())
     with c14:
-        vlr_seguro_anual = st.number_input("Valor Seguro Anual (R$)", value=580.00, min_value=0.0)
+        vlr_seguro_anual = st.number_input("Valor Seguro Anual (R$)", value=0.0, min_value=0.0)
     
-    reembolso_seguro = st.checkbox("Reembolsar Seguro Incêndio Proporcional?", value=True)
+    reembolso_seguro = st.checkbox("Reembolsar Seguro Incêndio Proporcional?", value=False)
 
     st.subheader("5. Reparos, Outros Lançamentos e Caução")
     c15, c16 = st.columns(2)
     with c15:
         vlr_reparos = st.number_input("Reparos / Danos Imóvel (R$)", value=0.0, min_value=0.0)
-        desc_extra1 = st.text_input("Outros 1 - Descrição")
+        desc_extra1 = st.text_input("Outros 1 - Descrição", value="", placeholder="Ex: Pintura")
         vlr_extra1 = st.number_input("Outros 1 - Valor (R$)", value=0.0, min_value=0.0)
-        desc_extra2 = st.text_input("Outros 2 - Descrição")
+        desc_extra2 = st.text_input("Outros 2 - Descrição", value="", placeholder="Ex: Troca de Fechadura")
         vlr_extra2 = st.number_input("Outros 2 - Valor (R$)", value=0.0, min_value=0.0)
     with c16:
-        vlr_extra3 = st.text_input("Outros 3 - Descrição")
+        desc_extra3 = st.text_input("Outros 3 - Descrição", value="", placeholder="Ex: Limpeza")
         vlr_extra3_val = st.number_input("Outros 3 - Valor (R$)", value=0.0, min_value=0.0)
         vlr_caucao = st.number_input("Valor Caução Depositada (R$)", value=0.0, min_value=0.0)
 
     btn_calcular = st.form_submit_button("🚀 Calcular e Gerar Termo em PDF", type="primary")
 
-# Processamento do Cálculo após Envio do Formulário
+# Processamento do Cálculo
 if btn_calcular:
     dias_mes_saida = dt_rescisao.day
     
@@ -145,7 +145,7 @@ if btn_calcular:
         if dias_efetivos > 0:
             seguro_reembolso_calc = round((vlr_seguro_anual / 365.0) * dias_efetivos * 0.8025, 2)
 
-    # Montagem da Lista de Itens do PDF
+    # Lista de Itens para o PDF
     itens_financeiros = []
     
     if aluguel_prop > 0:
@@ -171,7 +171,7 @@ if btn_calcular:
     total_debitos = sum(item["valor"] for item in itens_financeiros)
     saldo_final = total_debitos - vlr_caucao
 
-    # Resumo do Cálculo na Tela
+    # Resumo na Tela
     st.markdown("---")
     st.subheader("📊 Resumo do Acerto Calculado")
     for item in itens_financeiros:
@@ -186,7 +186,7 @@ if btn_calcular:
     else:
         st.info("**ACERTO QUITADO: R$ 0,00**")
 
-    # Geração do PDF com FPDF
+    # Geração do PDF
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -204,7 +204,7 @@ if btn_calcular:
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(6)
     
-    # Seção Dados do Contrato
+    # Seção 1
     pdf.set_fill_color(44, 62, 80)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font('Helvetica', 'B', 10)
@@ -224,7 +224,7 @@ if btn_calcular:
     add_row('Inscricao IPTU/TLP:', normalizar_texto(iptu_num))
     pdf.ln(4)
     
-    # Seção Prazos
+    # Seção 2
     pdf.set_fill_color(44, 62, 80)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font('Helvetica', 'B', 10)
@@ -236,7 +236,7 @@ if btn_calcular:
     add_row('Data Rescisao/Chaves:', dt_rescisao.strftime('%d/%m/%Y'))
     pdf.ln(4)
     
-    # Seção Financeira
+    # Seção 3
     pdf.set_fill_color(44, 62, 80)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font('Helvetica', 'B', 10)
@@ -258,7 +258,7 @@ if btn_calcular:
         
     pdf.ln(4)
     
-    # Total Box
+    # Box Total
     if saldo_final > 0:
         label_tot = "VALOR A SER COBRADO DO LOCATARIO: "
         val_tot_str = format_money(saldo_final)
